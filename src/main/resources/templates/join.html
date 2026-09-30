@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Welcome')}"></head>
+<body class="solo">
+<div class="solo-wrap">
+    <div class="solo-hero">
+        <p class="brand big"><span class="mark" aria-hidden="true">U/</span><b>UAT Hub</b></p>
+        <p class="hero-type">log.<br>decide.<br>ship to jira.</p>
+        <p class="muted-2 lead">One place for UAT feedback, business decisions and the Jira issues that come out of them.</p>
+    </div>
+
+    <section class="solo-card">
+        <div class="who-big">
+            <span class="avatar big" th:classappend="'r-' + ${person.role.name().toLowerCase()}" th:text="${person.initials}"></span>
+            <span><small class="mono muted" th:text="${mode == 'enterPin'} ? 'New browser' : 'Welcome'"></small>
+                <b th:text="'Hi ' + ${person.name}"></b></span>
+        </div>
+
+        <p class="flash err" role="alert" th:if="${err}" th:text="${err}"></p>
+
+        <p>You have access to <b th:text="${projectNames}"></b> as a
+            <b class="role-word" th:classappend="'r-' + ${person.role.name().toLowerCase()}" th:text="${person.role.label}"></b>.</p>
+
+        <form method="post" th:action="@{/join/{t}(t=${token})}" class="stack-sm">
+            <th:block th:if="${mode == 'setPin'}">
+                <p class="small muted-2">Your admin asks for a PIN when you use a new browser. Choose 4 digits you'll remember.</p>
+                <div class="grid2">
+                    <div class="field"><label for="pin">New PIN</label>
+                        <input id="pin" name="pin" class="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="new-password"></div>
+                    <div class="field"><label for="pinConfirm">Repeat PIN</label>
+                        <input id="pinConfirm" name="pinConfirm" class="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="new-password"></div>
+                </div>
+            </th:block>
+            <th:block th:if="${mode == 'enterPin'}">
+                <div class="field"><label for="pin-in">Your 4-digit PIN</label>
+                    <input id="pin-in" name="pin" class="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autofocus autocomplete="current-password"></div>
+                <p class="small muted-2">Forgot it? Your admin can reset it from Team &amp; access.</p>
+            </th:block>
+
+            <p class="warn small">This browser will remember you. Please don't forward your link: it acts as your sign-in.</p>
+            <button class="btn primary wide big-btn" type="submit">Continue</button>
+        </form>
+        <p class="small muted center" th:text="'Not ' + ${person.name} + '? Close this tab and ask your QA lead for your own link.'"></p>
+    </section>
+</div>
+</body>
+</html>

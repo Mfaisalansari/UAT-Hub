@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Open your link')}"></head>
+<body class="solo">
+<div class="solo-wrap single">
+    <section class="solo-card">
+        <p class="brand"><span class="mark" aria-hidden="true">U/</span><b>UAT Hub</b></p>
+        <h1 class="h2" th:text="${param.left != null} ? 'You are signed out on this browser' : 'Open your personal link to continue'"></h1>
+        <p class="muted-2">UAT Hub has no passwords. Everyone gets their own link from the admin. Open it once and this browser remembers you.</p>
+        <p class="note">No link yet, or lost it? Ask your QA lead or admin to send it from <b>Team &amp; access</b>.</p>
+    </section>
+</div>
+</body>
+</html>

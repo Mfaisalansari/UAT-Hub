@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' | UAT Hub'">UAT Hub</title>
+    <link rel="icon" th:href="@{/favicon.svg}" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+
+<body>
+
+<nav th:fragment="sidebar(active)" class="side" aria-label="Main">
+    <a class="brand" th:href="@{/}">
+        <span class="mark" aria-hidden="true">U/</span>
+        <span><b>UAT Hub</b><small>log → decide → jira</small></span>
+    </a>
+
+    <form th:if="${project != null}" class="proj" method="post" th:action="@{/project/select}">
+        <label for="proj-select">Project</label>
+        <select id="proj-select" name="id" data-autosubmit>
+            <option th:each="p : ${myProjects}" th:value="${p.id}" th:text="${p.name}"
+                    th:selected="${p.id == project.id}"></option>
+        </select>
+        <small th:text="${project.currentCycle != null ? project.currentCycle : 'No UAT cycle set'}"></small>
+    </form>
+
+    <div class="nav">
+        <a th:href="@{/}" th:classappend="${active == 'register'} ? 'on'">
+            <i></i>Register<span class="n" th:text="${navTotal}"></span></a>
+        <a th:if="${me.canLog()}" th:href="@{/feedback/new}" th:classappend="${active == 'log'} ? 'on'">
+            <i></i>Log feedback</a>
+        <a th:if="${me.canDecide()}" th:href="@{/review}" th:classappend="${active == 'review'} ? 'on'">
+            <i></i>Business review<span class="badge" th:if="${navReview != null and navReview > 0}" th:text="${navReview}"></span></a>
+        <a th:if="${me.canPush()}" th:href="@{/jira}" th:classappend="${active == 'jira'} ? 'on'">
+            <i></i>Jira push<span class="n" th:text="${navJira}"></span></a>
+        <th:block th:if="${me.isAdmin()}">
+            <div class="nav-group">Admin</div>
+            <a th:href="@{/team}" th:classappend="${active == 'team'} ? 'on'"><i></i>Team &amp; access</a>
+            <a th:href="@{/projects}" th:classappend="${active == 'projects'} ? 'on'"><i></i>Projects &amp; Jira</a>
+        </th:block>
+    </div>
+
+    <div class="who">
+        <span class="avatar" th:text="${me.initials()}"></span>
+        <span class="who-text"><b th:text="${me.name()}"></b><small th:text="${me.roleLabel()}"></small></span>
+        <form method="post" th:action="@{/leave}">
+            <button class="linkish" type="submit" title="Forget this browser">Sign out</button>
+        </form>
+    </div>
+</nav>
+
+<div th:fragment="flash" class="flashes">
+    <p class="flash ok" role="status" th:if="${ok}" th:text="${ok}"></p>
+    <p class="flash err" role="alert" th:if="${err}" th:text="${err}"></p>
+</div>
+
+<span th:fragment="rail(f)" class="rail" th:classappend="'s-' + ${f.stage.css}" th:title="${f.stage.label}">
+    <i th:each="k : ${#numbers.sequence(0, 4)}"
+       th:class="${k < f.stage.step ? 'd done' : (k == f.stage.step ? 'd now' : 'd')}"></i>
+    <em th:text="${f.stage.label}"></em>
+</span>
+
+<span th:fragment="type(f)" class="tag" th:classappend="'t-' + ${f.type.css}" th:text="${f.type.label}"></span>
+
+<span th:fragment="sev(f)" class="sev" th:classappend="'v-' + ${f.severity.css}" th:text="${f.severity.label}"></span>
+
+<figure th:fragment="thumbs(files)" class="thumbs" th:if="${files != null and !files.isEmpty()}">
+    <a th:each="a : ${files}" th:href="@{/attachments/{id}(id=${a.id})}" target="_blank" rel="noopener" class="thumb">
+        <img th:if="${a.image}" th:src="@{/attachments/{id}(id=${a.id})}" th:alt="${a.fileName}" loading="lazy">
+        <span th:unless="${a.image}" class="file-ico" th:text="${a.fileName}"></span>
+        <small th:text="${a.fileName}"></small>
+    </a>
+</figure>
+
+<ol th:fragment="trail(trail)" class="trail">
+    <li th:each="t : ${trail}">
+        <span class="dot"></span>
+        <span class="t-main"><b th:text="${t.action}"></b>
+            <span th:if="${t.actor != null}" th:text="' by ' + ${t.actor.name}"></span>
+            <span class="t-detail" th:if="${t.detail != null}" th:text="${t.detail}"></span></span>
+        <time class="mono muted" th:datetime="${t.at}" th:title="${@fmt.full(t.at)}" th:text="${@fmt.when(t.at)}"></time>
+    </li>
+</ol>
+
+</body>
+</html>

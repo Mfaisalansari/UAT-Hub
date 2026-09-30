@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Jira push')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('jira')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb">Decided items not yet in Jira</p>
+                <h1 class="title">Jira push</h1>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <p class="flash err" th:unless="${configured}">Jira is not connected yet. Set <code>JIRA_BASE_URL</code>,
+            <code>JIRA_TOKEN</code> (and <code>JIRA_EMAIL</code> for Cloud) before starting the app.</p>
+
+        <ul class="results" th:if="${results != null}">
+            <li th:each="r : ${results}" th:classappend="${r.ok()} ? 'ok' : 'bad'">
+                <span class="mono" th:text="${r.code()}"></span>
+                <span th:if="${r.key() != null}" class="mono lilac" th:text="${r.key()}"></span>
+                <span th:text="${r.message()}"></span>
+            </li>
+        </ul>
+
+        <div class="mapping">
+            <span class="mono muted">Mapping</span>
+            <span class="pill mono">project <b class="lime" th:text="${project.jiraProjectKey} ?: 'not set'"></b></span>
+            <span class="pill"><b class="c-defect">Defect</b> → <span th:text="${project.bugIssueType} ?: 'Bug'"></span></span>
+            <span class="pill"><b class="c-enhancement">Enhancement</b> → <span th:text="${project.storyIssueType} ?: 'Story'"></span></span>
+            <span class="pill"><b class="c-future_release">Future release</b> → <span th:text="${project.storyIssueType} ?: 'Story'"></span>, no fix version</span>
+            <a th:if="${me.isAdmin()}" class="linkish push-right" th:href="@{/projects}">Edit mapping</a>
+        </div>
+
+        <div class="split jira-split">
+            <form method="post" th:action="@{/jira/push}" class="stack" id="push-form">
+                <div class="table-wrap" th:unless="${ready.isEmpty()}">
+                    <table class="table">
+                        <thead><tr>
+                            <th class="check"><input type="checkbox" checked data-select-all aria-label="Select all"></th>
+                            <th>ID</th><th>Feedback</th><th>Decision</th><th>Issue type</th><th></th>
+                        </tr></thead>
+                        <tbody>
+                        <tr th:each="f : ${ready}" th:classappend="${previewItem != null and f.id == previewItem.id} ? 'row-on'">
+                            <td class="check"><input type="checkbox" name="ids" th:value="${f.id}" checked
+                                                     th:attr="aria-label='Select ' + ${f.code}"></td>
+                            <td class="mono id"><a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a></td>
+                            <td class="title-cell"><span th:text="${f.title}"></span><small th:text="${f.lobDivision}"></small></td>
+                            <td><b th:class="'c-' + ${f.decision.css}" th:text="${f.decision.label}"></b></td>
+                            <td class="muted-2" th:text="${project.issueTypeFor(f.decision)}"></td>
+                            <td><a class="linkish" th:href="@{/jira(preview=${f.id})}">Preview</a></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty" th:if="${ready.isEmpty()}">
+                    <h2>Nothing to push</h2>
+                    <p>Items land here once business decides Defect, Enhancement or Future release.</p>
+                </div>
+                <footer class="push-bar" th:unless="${ready.isEmpty()}">
+                    <b class="big-num" data-count th:text="${ready.size()}"></b>
+                    <span>selected. Labels <span class="mono">UAT-Feedback</span>, cycle, LOB and division are added to each.</span>
+                    <button class="btn primary push-right" type="submit" th:disabled="${!configured}">Create issues in Jira</button>
+                </footer>
+            </form>
+
+            <aside class="side-stack">
+                <th:block th:if="${previewItem != null}">
+                    <h2 class="h2">Preview <span class="mono muted small" th:text="${previewItem.code}"></span></h2>
+                    <article class="paper">
+                        <p class="paper-meta mono" th:text="(${project.jiraProjectKey} ?: '[KEY]') + ' · ' + ${preview.issueType}"></p>
+                        <h3 th:text="${preview.summary}"></h3>
+                        <dl>
+                            <th:block th:if="${previewItem.expected != null}"><dt>Expected</dt><dd th:text="${previewItem.expected}"></dd></th:block>
+                            <th:block th:if="${previewItem.actual != null}"><dt>Actual</dt><dd th:text="${previewItem.actual}"></dd></th:block>
+                            <dt>Business decision</dt><dd th:text="${previewItem.decision.label} + (${previewItem.targetRelease} != null ? ', target ' + ${previewItem.targetRelease} : '')"></dd>
+                            <dt>Rationale</dt><dd th:text="${previewItem.decisionRationale}"></dd>
+                            <th:block th:if="${preview.fixVersion != null}"><dt>Fix version</dt><dd th:text="${preview.fixVersion}"></dd></th:block>
+                        </dl>
+                        <div class="paper-tags">
+                            <span th:each="l : ${preview.labels}" th:text="${l}"></span>
+                        </div>
+                        <p class="paper-foot">Attachments are uploaded too. The issue links back to <span th:text="${previewItem.code}"></span>.</p>
+                    </article>
+                </th:block>
+
+                <section class="card" th:unless="${recent.isEmpty()}">
+                    <h2 class="label">Recently created</h2>
+                    <p class="kv" th:each="f : ${recent}">
+                        <a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a>
+                        <a class="mono" th:href="${f.jiraUrl}" target="_blank" rel="noopener" th:text="${f.jiraKey} + ' ↗'"></a>
+                    </p>
+                </section>
+            </aside>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

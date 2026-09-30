@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Not available for your role')}"></head>
+<body class="solo">
+<div class="solo-wrap single">
+    <section class="solo-card">
+        <p class="brand"><span class="mark" aria-hidden="true">U/</span><b>UAT Hub</b></p>
+        <h1 class="h2">That page isn't part of your role</h1>
+        <p class="muted-2">If you need it, ask your admin to change your role in Team &amp; access.</p>
+        <a class="btn primary" th:href="@{/}">Go to the register</a>
+    </section>
+</div>
+</body>
+</html>

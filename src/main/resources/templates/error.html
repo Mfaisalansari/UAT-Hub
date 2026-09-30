@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Something went wrong')}"></head>
+<body class="solo">
+<div class="solo-wrap single">
+    <section class="solo-card">
+        <p class="brand"><span class="mark" aria-hidden="true">U/</span><b>UAT Hub</b></p>
+        <h1 class="h2" th:text="${status == 404} ? 'That page or item does not exist' : (${status == 403} ? 'You do not have access to that' : 'Something went wrong')"></h1>
+        <p class="muted-2" th:if="${status != 404 and status != 403}">The error was logged on the server. Try again, and tell your admin if it keeps happening.</p>
+        <a class="btn primary" th:href="@{/}">Go to the register</a>
+    </section>
+</div>
+</body>
+</html>

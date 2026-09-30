@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('No project yet')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('')}"></nav>
+    <main class="main">
+        <div class="empty">
+            <h2>You're not on a project yet</h2>
+            <p th:if="${me.isAdmin()}">Create one in <a th:href="@{/projects}">Projects &amp; Jira</a>, then add people in Team &amp; access.</p>
+            <p th:unless="${me.isAdmin()}">Ask your admin to add you to a project in Team &amp; access.</p>
+        </div>
+    </main>
+</div>
+</body>
+</html>

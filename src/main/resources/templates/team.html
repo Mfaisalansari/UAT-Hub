@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Team & access')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('team')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb">No passwords. One personal link per person.</p>
+                <h1 class="title">Team &amp; access</h1>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="split team-split">
+            <section class="stack">
+                <form class="add-person" method="post" th:action="@{/team}">
+                    <div class="field"><label for="p-name">Name</label>
+                        <input id="p-name" name="name" required placeholder="Full name"></div>
+                    <div class="field"><label for="p-mail">Email (optional)</label>
+                        <input id="p-mail" name="email" type="email" placeholder="name@company.com"></div>
+                    <div class="field"><label for="p-role">Role</label>
+                        <select id="p-role" name="role">
+                            <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}"></option>
+                        </select></div>
+                    <fieldset class="field">
+                        <legend>Projects</legend>
+                        <div class="checks">
+                            <label th:each="p : ${allProjects}"><input type="checkbox" name="projectIds" th:value="${p.id}"
+                                   th:checked="${project != null and p.id == project.id}"><span th:text="${p.name}"></span></label>
+                        </div>
+                    </fieldset>
+                    <button class="btn primary" type="submit">Add &amp; create link</button>
+                </form>
+
+                <div class="table-wrap">
+                    <table class="table people">
+                        <thead><tr><th>Person</th><th>Role &amp; projects</th><th>Status</th><th>Personal link</th><th></th></tr></thead>
+                        <tbody>
+                        <tr th:each="u : ${people}"
+                            th:classappend="(${!u.active} ? 'row-off ' : '') + (${highlight != null and highlight == u.id} ? 'row-new' : '')">
+                            <td>
+                                <div class="person">
+                                    <span class="avatar" th:classappend="'r-' + ${u.role.name().toLowerCase()}" th:text="${u.initials}"></span>
+                                    <span><b th:text="${u.name}"></b><small th:text="${u.email} ?: ''"></small></span>
+                                </div>
+                            </td>
+                            <td>
+                                <details class="role-edit">
+                                    <summary>
+                                        <span class="tag outline" th:classappend="'r-' + ${u.role.name().toLowerCase()}" th:text="${u.role.label}"></span>
+                                        <small class="muted-2" th:text="${u.role.name() == 'ADMIN'} ? 'All projects' : (${u.projects.size()} + ' project(s)')"></small>
+                                    </summary>
+                                    <form method="post" th:action="@{/team/{id}/update(id=${u.id})}" class="stack-sm">
+                                        <select name="role" th:attr="aria-label='Role for ' + ${u.name}">
+                                            <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}" th:selected="${r == u.role}"></option>
+                                        </select>
+                                        <div class="checks">
+                                            <label th:each="p : ${allProjects}"><input type="checkbox" name="projectIds" th:value="${p.id}"
+                                                   th:checked="${u.projects.contains(p)}"><span th:text="${p.name}"></span></label>
+                                        </div>
+                                        <button class="btn ghost small-btn" type="submit">Save</button>
+                                    </form>
+                                </details>
+                            </td>
+                            <td>
+                                <b class="status" th:classappend="'st-' + ${u.status.toLowerCase()}" th:text="${u.status}"></b>
+                                <small class="muted-2 block" th:text="${u.lastSeenAt != null} ? 'Seen ' + ${@fmt.when(u.lastSeenAt)} : (${u.active} ? 'Link not opened yet' : '')"></small>
+                                <small class="muted-2 block" th:if="${requirePin and u.pinHash != null}">PIN set</small>
+                            </td>
+                            <td>
+                                <div class="link-box" th:if="${u.active}">
+                                    <input class="mono" readonly th:value="${links.get(u.id)}" th:attr="aria-label='Link for ' + ${u.name}">
+                                    <button class="btn outline-lime small-btn" type="button" data-copy>Copy link</button>
+                                </div>
+                                <span class="muted small" th:unless="${u.active}">No working link</span>
+                            </td>
+                            <td class="row-actions">
+                                <form method="post" th:action="@{/team/{id}/regenerate(id=${u.id})}" th:if="${u.active}"
+                                      data-confirm="Create a new link? The current link and any browser using it will stop working.">
+                                    <button class="linkish" type="submit">New link</button></form>
+                                <form method="post" th:action="@{/team/{id}/reset-pin(id=${u.id})}" th:if="${u.active and u.pinHash != null}">
+                                    <button class="linkish" type="submit">Reset PIN</button></form>
+                                <form method="post" th:action="@{/team/{id}/revoke(id=${u.id})}" th:if="${u.active and u.id != me.id()}"
+                                      th:attr="data-confirm='Revoke access for ' + ${u.name} + '?'">
+                                    <button class="linkish danger" type="submit">Revoke</button></form>
+                                <form method="post" th:action="@{/team/{id}/reactivate(id=${u.id})}" th:unless="${u.active}">
+                                    <button class="linkish" type="submit">Reactivate</button></form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <aside class="side-stack">
+                <h2 class="h2">What each role can do</h2>
+                <table class="matrix">
+                    <thead><tr><th></th><th title="Tester">TS</th><th title="QA lead">QA</th><th title="Business reviewer">BR</th><th title="Admin">AD</th></tr></thead>
+                    <tbody>
+                    <tr><td>Log feedback</td><td class="y">●</td><td class="y">●</td><td>·</td><td class="y">●</td></tr>
+                    <tr><td>Triage &amp; edit</td><td>·</td><td class="y">●</td><td>·</td><td class="y">●</td></tr>
+                    <tr><td>Record decision</td><td>·</td><td>·</td><td class="y">●</td><td class="y">●</td></tr>
+                    <tr><td>Push to Jira</td><td>·</td><td class="y">●</td><td>·</td><td class="y">●</td></tr>
+                    <tr><td>Import Excel</td><td>·</td><td class="y">●</td><td>·</td><td class="y">●</td></tr>
+                    <tr><td>Export Excel</td><td class="y">●</td><td class="y">●</td><td class="y">●</td><td class="y">●</td></tr>
+                    <tr><td>Team &amp; projects</td><td>·</td><td>·</td><td>·</td><td class="y">●</td></tr>
+                    </tbody>
+                </table>
+                <p class="small muted-2">TS Tester, QA QA lead, BR Business reviewer, AD Admin. Testers can also edit their own items until triage.</p>
+                <div class="note">
+                    <span class="label lilac">Good to know</span>
+                    <p>A link works like a password. If one is shared by mistake, create a new link: the old one stops working straight away.</p>
+                </div>
+                <form method="post" th:action="@{/team/pin}" class="switch-row">
+                    <span><b>Ask for a PIN on new browsers</b><small class="block muted-2">An optional 4-digit extra check</small></span>
+                    <input type="hidden" name="on" th:value="${!requirePin}">
+                    <button type="submit" class="switch" role="switch" th:attr="aria-checked=${requirePin}"
+                            aria-label="Ask for a PIN on new browsers"><span></span></button>
+                </form>
+            </aside>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

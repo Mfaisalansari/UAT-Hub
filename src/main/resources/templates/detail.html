@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${f.code})}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('register')}"></nav>
+    <main class="main">
+        <header class="item-head">
+            <p class="crumb"><a th:href="@{/}">← Register</a>
+                <span class="mono lime" th:text="${f.code}"></span>
+                <span th:text="${f.lobDivision}"></span>
+                <span th:if="${!f.where.isEmpty()}" th:text="${f.where}"></span></p>
+            <h1 class="title-2" th:text="${f.title}"></h1>
+            <div class="tags">
+                <span th:replace="~{fragments :: type(${f})}"></span>
+                <span class="tag outline" th:text="${f.severity.label}" th:classappend="'v-' + ${f.severity.css}"></span>
+                <span th:replace="~{fragments :: rail(${f})}"></span>
+                <span class="tag outline muted-2" th:if="${f.raisedBy != null}" th:text="'Raised by ' + ${f.raisedBy.name}"></span>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="split">
+            <section class="stack">
+                <div class="prose-block" th:if="${f.description != null}">
+                    <h2 class="label">What happened</h2>
+                    <p class="pre" th:text="${f.description}"></p>
+                </div>
+                <div class="grid2" th:if="${f.expected != null or f.actual != null}">
+                    <div class="panel"><h2 class="label">Expected</h2><p class="pre" th:text="${f.expected} ?: '—'"></p></div>
+                    <div class="panel"><h2 class="label">Actual</h2><p class="pre" th:text="${f.actual} ?: '—'"></p></div>
+                </div>
+                <figure th:replace="~{fragments :: thumbs(${files})}"></figure>
+                <div class="note" th:if="${f.qaNote != null}">
+                    <span class="label lilac">QA note</span><p class="pre" th:text="${f.qaNote}"></p>
+                </div>
+                <div class="note decision" th:if="${f.decision != null}">
+                    <span class="label" th:classappend="'d-' + ${f.decision.css}" th:text="'Decision: ' + ${f.decision.label}"></span>
+                    <p class="pre" th:text="${f.decisionRationale}"></p>
+                    <p class="small muted-2">
+                        <span th:if="${f.targetRelease != null}" th:text="'Target ' + ${f.targetRelease} + '. '"></span>
+                        <span th:if="${f.decidedBy != null}" th:text="'Decided by ' + ${f.decidedBy.name} + ', ' + ${@fmt.when(f.decidedAt)}"></span>
+                    </p>
+                </div>
+                <p class="note" th:if="${f.duplicateOf != null}">Closed as a duplicate of
+                    <a class="mono" th:href="@{/feedback/{id}(id=${f.duplicateOf})}" th:text="${@fmt.code(f.duplicateOf)}"></a>.</p>
+
+                <div>
+                    <h2 class="label">Trail</h2>
+                    <ol th:replace="~{fragments :: trail(${trail})}"></ol>
+                </div>
+            </section>
+
+            <aside class="side-stack">
+                <!-- QA triage -->
+                <section class="card" th:if="${me.canTriage() and f.stage.openForTriage}">
+                    <h2 class="h3">Triage</h2>
+                    <form method="post" th:action="@{/feedback/{id}/triage(id=${f.id})}" class="stack-sm">
+                        <div class="grid2">
+                            <div class="field">
+                                <label for="t-type">Type</label>
+                                <select id="t-type" name="type">
+                                    <option th:each="t : ${types}" th:value="${t.name()}" th:text="${t.label}" th:selected="${t == f.type}"></option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="t-sev">Severity</label>
+                                <select id="t-sev" name="severity">
+                                    <option th:each="v : ${severities}" th:value="${v.name()}" th:text="${v.label}" th:selected="${v == f.severity}"></option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="qaNote">QA note for business</label>
+                            <textarea id="qaNote" name="qaNote" rows="3" th:text="${f.qaNote}"
+                                      placeholder="Reproduced? Workaround? Impact on release?"></textarea>
+                        </div>
+                        <button class="btn primary wide" type="submit" name="action" value="send">Send to business review</button>
+                        <button class="btn ghost wide" type="submit" name="action" value="info">Ask tester for more info</button>
+                        <div class="dup-row">
+                            <label class="sr" for="dup">Original item ID</label>
+                            <input id="dup" name="duplicateOf" placeholder="UAT-0042" class="mono">
+                            <button class="btn ghost" type="submit" name="action" value="duplicate">Close as duplicate</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="card" th:if="${f.stage.name() == 'NEEDS_INFO' and !me.canTriage()}">
+                    <h2 class="h3">More information needed</h2>
+                    <p class="small muted-2">QA asked for more detail. Update the item below and resubmit it.</p>
+                </section>
+
+                <a th:if="${f.stage.name() == 'BUSINESS_REVIEW' and me.canDecide()}" class="btn primary wide"
+                   th:href="@{/review(id=${f.id})}">Open in business review</a>
+                <a th:if="${f.stage.name() == 'DECIDED' and me.canPush()}" class="btn primary wide"
+                   th:href="@{/jira(preview=${f.id})}">Prepare Jira issue</a>
+                <a th:if="${f.jiraUrl != null}" class="btn ghost wide mono" th:href="${f.jiraUrl}" target="_blank" rel="noopener"
+                   th:text="'Open ' + ${f.jiraKey} + ' in Jira ↗'"></a>
+
+                <!-- Edit -->
+                <details class="card" th:if="${canEdit}" th:open="${f.stage.name() == 'NEEDS_INFO' and !me.canTriage()}">
+                    <summary class="h3">Edit details</summary>
+                    <form method="post" enctype="multipart/form-data" class="stack-sm"
+                          th:action="@{/feedback/{id}/edit(id=${f.id}, _csrf=${_csrf.token})}">
+                        <input type="hidden" name="type" th:value="${f.type.name()}">
+                        <input type="hidden" name="severity" th:value="${f.severity.name()}">
+                        <div class="field"><label for="e-title">Title</label>
+                            <input id="e-title" name="title" required maxlength="300" th:value="${f.title}"></div>
+                        <div class="grid2">
+                            <div class="field"><label for="e-lob">LOB</label>
+                                <select id="e-lob" name="lob"><option value="">—</option>
+                                    <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}" th:selected="${l == f.lob}"></option></select></div>
+                            <div class="field"><label for="e-div">Division</label>
+                                <select id="e-div" name="division"><option value="">—</option>
+                                    <option th:each="d : ${divisions}" th:value="${d}" th:text="${d}" th:selected="${d == f.division}"></option></select></div>
+                        </div>
+                        <div class="grid2">
+                            <div class="field"><label for="e-mod">Case type › stage</label><input id="e-mod" name="module" th:value="${f.module}"></div>
+                            <div class="field"><label for="e-scr">Screen</label><input id="e-scr" name="screen" th:value="${f.screen}"></div>
+                        </div>
+                        <div class="field"><label for="e-desc">What happened</label>
+                            <textarea id="e-desc" name="description" rows="4" th:text="${f.description}"></textarea></div>
+                        <div class="field"><label for="e-exp">Expected</label>
+                            <textarea id="e-exp" name="expected" rows="2" th:text="${f.expected}"></textarea></div>
+                        <div class="field"><label for="e-act">Actual</label>
+                            <textarea id="e-act" name="actual" rows="2" th:text="${f.actual}"></textarea></div>
+                        <div class="field"><label for="e-files">Add files</label>
+                            <input id="e-files" type="file" name="files" multiple></div>
+                        <button class="btn ghost wide" type="submit">Save changes</button>
+                        <button th:if="${f.stage.name() == 'NEEDS_INFO'}" class="btn primary wide" type="submit"
+                                name="resubmit" value="1">Save &amp; resubmit for triage</button>
+                    </form>
+                </details>
+            </aside>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

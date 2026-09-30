@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Business review')}"></head>
+<body>
+<div class="shell review-shell">
+    <nav th:replace="~{fragments :: sidebar('review')}"></nav>
+
+    <section class="queue" aria-label="Waiting for a decision">
+        <h2 class="h2">Awaiting you <span class="mono lilac" th:text="${queue.size()}"></span></h2>
+        <a th:each="q : ${queue}" class="q-item" th:classappend="${item != null and q.id == item.id} ? 'on'"
+           th:href="@{/review(id=${q.id})}">
+            <span class="q-meta mono"><span class="lime" th:text="${q.code}"></span><span th:text="${q.lob}"></span>
+                <span class="q-age" th:text="${@fmt.when(q.createdAt)}"></span></span>
+            <span class="q-title" th:text="${q.title}"></span>
+        </a>
+        <p class="muted small" th:if="${queue.isEmpty()}">Nothing waiting.</p>
+    </section>
+
+    <main class="main review-main">
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="empty" th:if="${item == null}">
+            <h2>Nothing is waiting for a decision</h2>
+            <p>New items appear here after QA triage. You can browse everything in the <a th:href="@{/}">register</a>.</p>
+        </div>
+
+        <th:block th:if="${item != null}">
+            <header class="item-head">
+                <p class="crumb"><span class="mono lime" th:text="${item.code}"></span>
+                    <span th:text="${item.lobDivision}"></span>
+                    <span th:if="${!item.where.isEmpty()}" th:text="${item.where}"></span></p>
+                <h1 class="title-2" th:text="${item.title}"></h1>
+                <div class="tags">
+                    <span th:replace="~{fragments :: type(${item})}"></span>
+                    <span class="tag outline" th:text="${item.severity.label}" th:classappend="'v-' + ${item.severity.css}"></span>
+                    <span class="tag outline muted-2" th:if="${item.raisedBy != null}" th:text="'Raised by ' + ${item.raisedBy.name}"></span>
+                </div>
+            </header>
+            <p class="pre" th:if="${item.description != null}" th:text="${item.description}"></p>
+            <div class="grid2" th:if="${item.expected != null or item.actual != null}">
+                <div class="panel"><h2 class="label">Expected</h2><p class="pre" th:text="${item.expected} ?: '—'"></p></div>
+                <div class="panel"><h2 class="label">Actual</h2><p class="pre" th:text="${item.actual} ?: '—'"></p></div>
+            </div>
+            <figure th:replace="~{fragments :: thumbs(${files})}"></figure>
+            <div class="note" th:if="${item.qaNote != null}">
+                <span class="label lilac">QA note</span><p class="pre" th:text="${item.qaNote}"></p>
+            </div>
+            <div>
+                <h2 class="label">Trail</h2>
+                <ol th:replace="~{fragments :: trail(${trail})}"></ol>
+            </div>
+        </th:block>
+    </main>
+
+    <aside class="decide" th:if="${item != null}" aria-label="Decision">
+        <form method="post" th:action="@{/review/{id}/decide(id=${item.id})}" class="decide-form">
+            <h2 class="h2">Your decision</h2>
+            <fieldset class="decisions">
+                <legend class="sr">Decision</legend>
+                <label th:each="d, s : ${decisions}" th:classappend="'d-' + ${d.css}">
+                    <input type="radio" name="decision" th:value="${d.name()}" th:checked="${s.first}" required
+                           th:attr="data-jira=${d.goesToJira}">
+                    <span class="ring"></span>
+                    <span class="d-text"><b th:text="${d.label}"></b><small th:text="${d.hint}"></small></span>
+                </label>
+            </fieldset>
+            <div class="field" data-release>
+                <label for="targetRelease">Target release</label>
+                <input id="targetRelease" name="targetRelease" placeholder="e.g. R3.2 or Next release">
+            </div>
+            <div class="field">
+                <label for="rationale">Rationale <span class="req">*</span></label>
+                <textarea id="rationale" name="rationale" rows="4" required
+                          placeholder="Why this decision. It is shown in the register and the Jira issue."></textarea>
+            </div>
+            <button class="btn primary wide big-btn" type="submit">Record decision</button>
+            <p class="small muted center">The next item in the queue opens automatically.</p>
+        </form>
+    </aside>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

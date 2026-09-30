@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Log feedback')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('log')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb"><a th:href="@{/}">← Register</a></p>
+                <h1 class="title">Log feedback</h1>
+            </div>
+            <p class="mono muted" th:text="${project.name} + ' / ' + (${project.currentCycle} ?: 'No cycle')"></p>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <form id="log-form" class="split" method="post" enctype="multipart/form-data"
+              th:action="@{/feedback(_csrf=${_csrf.token})}">
+            <section class="card form-card">
+                <fieldset class="field">
+                    <legend>Line of business</legend>
+                    <div class="chips">
+                        <label th:each="l, s : ${lobs}"><input type="radio" name="lob" th:value="${l}"
+                               th:checked="${lastLob != null ? l == lastLob : s.first}"><span th:text="${l}"></span></label>
+                    </div>
+                </fieldset>
+
+                <div class="grid2">
+                    <fieldset class="field">
+                        <legend>Division</legend>
+                        <div class="chips">
+                            <label th:each="d, s : ${divisions}"><input type="radio" name="division" th:value="${d}"
+                                   th:checked="${lastDivision != null ? d == lastDivision : s.first}"><span th:text="${d}"></span></label>
+                        </div>
+                    </fieldset>
+                    <fieldset class="field">
+                        <legend>Severity</legend>
+                        <div class="chips">
+                            <label th:each="v : ${severities}"><input type="radio" name="severity" th:value="${v.name()}"
+                                   th:checked="${v.name() == 'MEDIUM'}"><span th:text="${v.label}"></span></label>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <fieldset class="field">
+                    <legend>Type</legend>
+                    <div class="chips">
+                        <label th:each="t : ${types}"><input type="radio" name="type" th:value="${t.name()}"
+                               th:checked="${t.name() == 'BUG'}"><span th:text="${t.label}"></span></label>
+                    </div>
+                </fieldset>
+
+                <div class="grid2">
+                    <div class="field">
+                        <label for="module">Pega case type › stage</label>
+                        <input id="module" name="module" placeholder="e.g. Quote › Endorsement">
+                    </div>
+                    <div class="field">
+                        <label for="screen">Screen or section</label>
+                        <input id="screen" name="screen" placeholder="e.g. Pricing summary">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="title">Title <span class="req">*</span></label>
+                    <input id="title" name="title" required maxlength="300" class="big" autocomplete="off"
+                           placeholder="One line a business reader understands" data-similar>
+                </div>
+
+                <div class="field">
+                    <label for="description">What happened</label>
+                    <textarea id="description" name="description" rows="4"
+                              placeholder="Steps, data used, policy or quote reference"></textarea>
+                </div>
+
+                <div class="grid2">
+                    <div class="field">
+                        <label for="expected">Expected</label>
+                        <textarea id="expected" name="expected" rows="3"></textarea>
+                    </div>
+                    <div class="field">
+                        <label for="actual">Actual</label>
+                        <textarea id="actual" name="actual" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <footer class="form-foot">
+                    <span class="muted small">LOB and division carry over to your next entry.</span>
+                    <button class="btn ghost" type="submit">Save</button>
+                    <button class="btn primary" type="submit" name="next" value="1">Save &amp; log next</button>
+                </footer>
+            </section>
+
+            <aside class="side-stack">
+                <section class="drop card-dashed" data-dropzone>
+                    <h2 class="h3">Evidence</h2>
+                    <label class="drop-target" for="files">
+                        <span class="mono lime">Ctrl + V</span>
+                        <span>to paste a screenshot, or drop files here</span>
+                        <span class="linkish">or choose files</span>
+                    </label>
+                    <input id="files" type="file" name="files" multiple hidden
+                           accept="image/*,.pdf,.xlsx,.xls,.docx,.txt,.csv,.eml,.msg">
+                    <div class="thumbs" data-previews></div>
+                </section>
+
+                <section class="similar" data-similar-box hidden>
+                    <h2 class="h3"><i class="lilac-dot"></i>Looks similar</h2>
+                    <p class="small muted-2">Open items in this project with a similar title. Check before logging a duplicate.</p>
+                    <div data-similar-list></div>
+                </section>
+            </aside>
+        </form>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

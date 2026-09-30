@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Feedback register')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('register')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb" th:text="${project.name} + ' / ' + (${project.currentCycle} ?: 'No cycle')"></p>
+                <h1 class="title">Feedback register</h1>
+            </div>
+            <div class="actions">
+                <form th:if="${me.canTriage()}" method="post" enctype="multipart/form-data"
+                      th:action="@{/import(_csrf=${_csrf.token})}" class="inline">
+                    <label class="btn ghost file-btn">Import Excel
+                        <input type="file" name="file" accept=".xlsx,.xls" data-autosubmit hidden>
+                    </label>
+                </form>
+                <a class="btn ghost" th:href="@{/export}">Export</a>
+                <a th:if="${me.canLog()}" class="btn primary" th:href="@{/feedback/new}">+ Log feedback</a>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <nav class="strip" aria-label="Filter by stage">
+            <a th:each="c : ${counts}" th:href="@{/(stage=${c.stage().name()})}"
+               th:classappend="(${fStage} == ${c.stage()} ? 'on ' : '') + 's-' + ${c.stage().css}">
+                <span class="strip-label"><i></i><span th:text="${c.stage().label}"></span></span>
+                <b th:text="${c.count()}"></b>
+            </a>
+        </nav>
+
+        <form class="filters" method="get" th:action="@{/}">
+            <label class="sr" for="q">Search feedback</label>
+            <input id="q" type="search" name="q" th:value="${q}" placeholder="Search ID, title, screen, Jira key">
+            <label class="sr" for="f-lob">Line of business</label>
+            <select id="f-lob" name="lob" data-autosubmit>
+                <option value="">All LOBs</option>
+                <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}" th:selected="${l == fLob}"></option>
+            </select>
+            <label class="sr" for="f-div">Division</label>
+            <select id="f-div" name="division" data-autosubmit>
+                <option value="">All divisions</option>
+                <option th:each="d : ${divisions}" th:value="${d}" th:text="${d}" th:selected="${d == fDivision}"></option>
+            </select>
+            <label class="sr" for="f-type">Type</label>
+            <select id="f-type" name="type" data-autosubmit>
+                <option value="">All types</option>
+                <option th:each="t : ${types}" th:value="${t.name()}" th:text="${t.label}" th:selected="${t == fType}"></option>
+            </select>
+            <input type="hidden" name="stage" th:if="${fStage != null}" th:value="${fStage.name()}">
+            <button class="btn ghost" type="submit">Search</button>
+            <a th:if="${filtered}" class="linkish" th:href="@{/}">Clear filters</a>
+        </form>
+
+        <div class="table-wrap" th:unless="${rows.isEmpty()}">
+            <table class="table">
+                <thead>
+                <tr><th>ID</th><th>Feedback</th><th>LOB / division</th><th>Type</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="f : ${rows}">
+                    <td class="mono id"><a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a></td>
+                    <td class="title-cell">
+                        <a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.title}"></a>
+                        <small th:if="${!f.where.isEmpty()}" th:text="${f.where}"></small>
+                    </td>
+                    <td class="muted-2" th:text="${f.lobDivision}"></td>
+                    <td><span th:replace="~{fragments :: type(${f})}"></span></td>
+                    <td><span th:replace="~{fragments :: sev(${f})}"></span></td>
+                    <td><span th:replace="~{fragments :: rail(${f})}"></span></td>
+                    <td class="muted-2" th:text="${f.decision != null ? f.decision.label : '—'}"></td>
+                    <td class="mono">
+                        <a th:if="${f.jiraUrl != null}" th:href="${f.jiraUrl}" target="_blank" rel="noopener" class="jira-key" th:text="${f.jiraKey}"></a>
+                        <span th:if="${f.jiraUrl == null}" class="muted">—</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="empty" th:if="${rows.isEmpty()}">
+            <h2 th:text="${filtered} ? 'Nothing matches these filters' : 'No feedback logged yet'"></h2>
+            <p th:if="${filtered}">Try a different search, or <a th:href="@{/}">clear the filters</a>.</p>
+            <p th:unless="${filtered}">Log the first item, or import your existing UAT sheet with <b>Import Excel</b>.</p>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

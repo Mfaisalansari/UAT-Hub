@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
-<head th:replace="~{fragments :: head(${s == null} ? 'New scenario' : ${s.code})}"></head>
+<head th:replace="~{fragments :: head(${s == null ? 'New scenario' : s.code})}"></head>
 <body>
 <div class="shell">
     <nav th:replace="~{fragments :: sidebar('scenarios')}"></nav>
@@ -46,18 +46,22 @@
             <fieldset class="field">
                 <legend>Steps <span class="req">*</span></legend>
                 <ol class="step-editor" data-steps>
-                    <li th:if="${s != null}" th:each="st : ${s.steps}">
+                    <th:block th:if="${s != null}">
+                    <li th:each="st : ${s.steps}">
                         <span class="mono muted n"></span>
                         <textarea name="action" rows="2" aria-label="Action" placeholder="Action" th:text="${st.action}"></textarea>
                         <textarea name="expected" rows="2" aria-label="Expected result" placeholder="Expected result" th:text="${st.expected}"></textarea>
                         <button type="button" class="linkish danger" data-remove-step>Remove</button>
                     </li>
-                    <li th:if="${s == null}" th:each="i : ${#numbers.sequence(1, 3)}">
+                    </th:block>
+                    <th:block th:if="${s == null}">
+                    <li th:each="i : ${#numbers.sequence(1, 3)}">
                         <span class="mono muted n"></span>
                         <textarea name="action" rows="2" aria-label="Action" placeholder="Action"></textarea>
                         <textarea name="expected" rows="2" aria-label="Expected result" placeholder="Expected result"></textarea>
                         <button type="button" class="linkish danger" data-remove-step>Remove</button>
                     </li>
+                    </th:block>
                 </ol>
                 <button type="button" class="btn ghost small-btn" data-add-step>+ Add step</button>
             </fieldset>

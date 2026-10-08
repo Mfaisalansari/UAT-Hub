@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface UatCycleRepository extends JpaRepository<UatCycle, Long> {
     List<UatCycle> findByProjectOrderByIdDesc(Project project);
     Optional<UatCycle> findByProjectAndNameIgnoreCase(Project project, String name);
+    List<UatCycle> findByOpenTrue();
 }

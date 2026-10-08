@@ -28,8 +28,11 @@ public class GlobalModel {
     private final FeedbackRepository feedback;
     private final UatHubProperties props;
     private final CycleService cycles;
+    private final com.uathub.ai.AiClient ai;
 
-    public GlobalModel(ProjectContext ctx, FeedbackRepository feedback, UatHubProperties props, CycleService cycles) {
+    public GlobalModel(ProjectContext ctx, FeedbackRepository feedback, UatHubProperties props, CycleService cycles,
+                       com.uathub.ai.AiClient ai) {
+        this.ai = ai;
         this.ctx = ctx;
         this.feedback = feedback;
         this.props = props;
@@ -40,6 +43,7 @@ public class GlobalModel {
     public void common(Model model, @AuthenticationPrincipal CurrentUser me, HttpSession session) {
         model.addAttribute("lobs", props.lobs());
         model.addAttribute("divisions", props.divisions());
+        model.addAttribute("aiEnabled", ai.enabled());
         if (me == null) return;
         model.addAttribute("me", me);
         Project p = ctx.current(me, session);

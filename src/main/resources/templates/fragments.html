@@ -19,6 +19,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <meta name="csrf-token" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="csrf-header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
 </head>
 
 <body>
@@ -107,6 +109,36 @@
         <small th:text="${a.fileName}"></small>
     </a>
 </figure>
+
+<section th:fragment="discussion(f, comments, mentionable, back)" class="discussion" id="discussion">
+    <h2 class="label" th:text="'Discussion' + (${comments.isEmpty()} ? '' : ' (' + ${comments.size()} + ')')">Discussion</h2>
+    <ol class="comments" th:unless="${comments.isEmpty()}">
+        <li th:each="c : ${comments}" th:classappend="${c.author != null and c.author.id == me.id()} ? 'mine'">
+            <span class="avatar" th:classappend="${c.author != null} ? 'r-' + ${c.author.role.name().toLowerCase()} : ''"
+                  th:text="${c.author != null} ? ${c.author.initials} : '?'"></span>
+            <div class="c-body">
+                <p class="c-meta"><b th:text="${c.author != null} ? ${c.author.name} : 'Someone'"></b>
+                    <span class="muted small" th:if="${c.author != null}" th:text="${c.author.role.label}"></span>
+                    <time class="muted small" th:datetime="${c.createdAt}" th:title="${@fmt.full(c.createdAt)}" th:text="${@fmt.when(c.createdAt)}"></time></p>
+                <p class="pre" th:text="${c.text}"></p>
+            </div>
+        </li>
+    </ol>
+    <form method="post" th:action="@{/feedback/{id}/comments(id=${f.id})}" class="comment-form">
+        <input type="hidden" name="back" th:value="${back}">
+        <label class="sr" th:for="'ct-' + ${f.id}">Add a comment</label>
+        <textarea th:id="'ct-' + ${f.id}" name="text" rows="3" maxlength="2000" required data-mention-box
+                  placeholder="Ask a question or add context. Type @ and a name to notify someone."></textarea>
+        <div class="comment-foot">
+            <span class="mention-chips" th:unless="${mentionable.isEmpty()}">
+                <span class="small muted">Mention</span>
+                <button type="button" class="chip-btn" th:each="u : ${mentionable}" th:if="${u.id != me.id()}"
+                        th:attr="data-mention=${u.name}" th:text="'@' + ${u.name}"></button>
+            </span>
+            <button class="btn primary small-btn" type="submit">Comment</button>
+        </div>
+    </form>
+</section>
 
 <ol th:fragment="trail(trail)" class="trail">
     <li th:each="t : ${trail}">

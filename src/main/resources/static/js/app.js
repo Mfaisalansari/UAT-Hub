@@ -37,6 +37,11 @@
             if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault();
         });
     });
+    document.querySelectorAll('button[data-confirm]').forEach(function (b) {
+        b.addEventListener('click', function (e) {
+            if (!window.confirm(b.getAttribute('data-confirm'))) e.preventDefault();
+        });
+    });
 
     // Copy personal links. navigator.clipboard needs HTTPS, so fall back to execCommand on plain HTTP.
     document.querySelectorAll('[data-copy]').forEach(function (btn) {
@@ -100,6 +105,75 @@
             li.querySelector('textarea').focus();
         });
     }
+
+    // Register bulk bar: show only the extra field the chosen action needs.
+    var bulkAction = document.querySelector('[data-bulk-action]');
+    if (bulkAction) {
+        var syncBulk = function () {
+            document.querySelectorAll('[data-bulk-for]').forEach(function (el) {
+                var on = el.getAttribute('data-bulk-for') === bulkAction.value;
+                el.hidden = !on;
+                el.required = on && el.tagName === 'INPUT';
+            });
+        };
+        bulkAction.addEventListener('change', syncBulk);
+        syncBulk();
+    }
+
+    // Exit report: print, or save as PDF from the print dialog.
+    document.querySelectorAll('[data-print]').forEach(function (b) {
+        b.addEventListener('click', function () { window.print(); });
+    });
+
+    // AI assist: suggest type and severity on the Log feedback form.
+    var csrfToken = document.querySelector('meta[name="csrf-token"]');
+    var csrfHeader = document.querySelector('meta[name="csrf-header"]');
+    var aiBtn = document.querySelector('[data-ai-classify]');
+    if (aiBtn) {
+        var aiOut = document.querySelector('[data-ai-result]');
+        aiBtn.addEventListener('click', function () {
+            var form = aiBtn.closest('form');
+            var val = function (name) {
+                var el = form.querySelector('[name="' + name + '"]:checked') || form.querySelector('[name="' + name + '"]');
+                return el && el.type !== 'radio' ? el.value : (el ? el.value : '');
+            };
+            var body = new URLSearchParams();
+            ['title', 'description', 'expected', 'actual', 'module'].forEach(function (n) { body.append(n, val(n)); });
+            var lob = form.querySelector('[name="lob"]:checked');
+            body.append('lob', lob ? lob.value : '');
+            var headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+            if (csrfToken && csrfHeader) headers[csrfHeader.content] = csrfToken.content;
+            aiBtn.disabled = true;
+            aiOut.textContent = 'Asking AI…';
+            fetch('/api/ai/classify', { method: 'POST', credentials: 'same-origin', headers: headers, body: body })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                    if (!res.ok) { aiOut.textContent = res.j.error || 'AI suggestion failed.'; return; }
+                    var t = form.querySelector('[name="type"][value="' + res.j.type + '"]');
+                    var s = form.querySelector('[name="severity"][value="' + res.j.severity + '"]');
+                    if (t) t.checked = true;
+                    if (s) s.checked = true;
+                    aiOut.textContent = 'AI suggests ' + (t ? t.parentNode.textContent.trim() : res.j.type) + ', '
+                        + (s ? s.parentNode.textContent.trim() : res.j.severity) + ': ' + res.j.reason + ' Change either if it\'s wrong.';
+                })
+                .catch(function () { aiOut.textContent = 'AI suggestion failed. Try again.'; })
+                .then(function () { aiBtn.disabled = false; });
+        });
+    }
+
+    // Comments: clicking a name inserts "@Name " at the cursor.
+    document.querySelectorAll('[data-mention]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var box = b.closest('form').querySelector('[data-mention-box]');
+            var tag = '@' + b.getAttribute('data-mention') + ' ';
+            var at = box.selectionStart || box.value.length;
+            var before = box.value.slice(0, at);
+            if (before && !/\s$/.test(before)) tag = ' ' + tag;
+            box.value = before + tag + box.value.slice(at);
+            box.focus();
+            box.selectionStart = box.selectionEnd = at + tag.length;
+        });
+    });
 
     // Business review: target release only for decisions that go to Jira.
     var release = document.querySelector('[data-release]');

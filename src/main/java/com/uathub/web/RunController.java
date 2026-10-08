@@ -29,8 +29,11 @@ public class RunController {
     private final TestingService testing;
     private final ScenarioRepository scenarios;
     private final CycleService cycles;
+    private final com.uathub.service.ReportService reports;
 
-    public RunController(ProjectContext ctx, TestingService testing, ScenarioRepository scenarios, CycleService cycles) {
+    public RunController(ProjectContext ctx, TestingService testing, ScenarioRepository scenarios, CycleService cycles,
+                         com.uathub.service.ReportService reports) {
+        this.reports = reports;
         this.ctx = ctx;
         this.testing = testing;
         this.scenarios = scenarios;
@@ -130,7 +133,7 @@ public class RunController {
                 if (sid != null) wanted.put(sid, userId);
             }
         }
-        int n = testing.assign(run, wanted);
+        int n = testing.assign(run, wanted, ctx.user(me));
         ra.addFlashAttribute("ok", n == 0 ? "No changes." : "Updated " + n + " assignment(s).");
         String lob = req.getParameter("lob");
         return "redirect:/runs/" + id + "/assign" + (lob == null || lob.isBlank() ? "" : "?lob=" + java.net.URLEncoder.encode(lob, java.nio.charset.StandardCharsets.UTF_8));
@@ -158,6 +161,23 @@ public class RunController {
         ra.addFlashAttribute("ok", "Signed off " + s.getLob() + " for " + cycle.getName() + "."
                 + (s.getAcceptedIssues() == null ? "" : " Accepted open issues: " + s.getAcceptedIssues() + "."));
         return "redirect:/runs";
+    }
+
+    /** Printable UAT exit report for the current cycle (Print → Save as PDF in the browser). */
+    @GetMapping("/report")
+    public String report(@AuthenticationPrincipal CurrentUser me, HttpSession session, Model model) {
+        Project project = ctx.current(me, session);
+        if (project == null) return "no-project";
+        UatCycle cycle = cycles.current(project, session);
+        if (cycle == null) return "redirect:/runs";
+        model.addAttribute("r", reports.build(cycle, ctx.user(me)));
+        return "report";
+    }
+
+    @GetMapping("/report.xlsx")
+    public ResponseEntity<byte[]> reportExcel(@AuthenticationPrincipal CurrentUser me, HttpSession session) throws IOException {
+        UatCycle cycle = cycles.require(ctx.require(me, session), session);
+        return xlsx("UAT exit report " + cycle.getName(), reports.excel(reports.build(cycle, ctx.user(me))));
     }
 
     @GetMapping("/cycle-export")

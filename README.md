@@ -156,6 +156,75 @@ Logged → (Needs info ↺) → Business review → Decided → In Jira
                                            ↘ Closed (comment / works as designed / duplicate)
 ```
 
+## UAT exit report
+
+**Cycle & runs → Exit report** shows the sign-off pack for the selected cycle: scenarios in scope and pass
+rate, results and business sign-off per LOB, open issues accepted at sign-off, feedback by type and severity,
+where feedback ended up, open items, runs, and a comparison with the project's other cycles.
+**Print or save as PDF** gives a light A4 document; **Download Excel** gives the same figures as separate sheets
+plus every scenario's latest result.
+
+## Notifications
+
+People hear about what needs them, by email and/or in a Teams channel:
+
+| When | Who |
+|---|---|
+| An item is sent to business review (one message for a bulk send) | Business reviewers, Teams |
+| QA asks for more information | The person who raised it |
+| A business decision is recorded | Who raised it, QA leads; Teams when it's ready for Jira |
+| An issue is raised from a scenario step | QA leads, Teams |
+| Scenarios are assigned, or a new run copies them | Each assignee |
+| A new build makes scenarios re-tests | Each assignee |
+| A comment is added | People @mentioned, who raised the item, earlier commenters |
+| Weekdays at 9:00 | Everyone with something waiting: a to-do email (skipped when nothing is waiting) |
+
+The person who did the action is never notified about it. Messages are sent in the background after the change is
+saved, so a slow mail server never slows the app.
+
+- **Email**: set the SMTP server as environment variables, then restart. Nothing is sent without it.
+  ```bash
+  export SPRING_MAIL_HOST=smtp.yourco.com SPRING_MAIL_PORT=587
+  export SPRING_MAIL_USERNAME=uat-hub@yourco.com SPRING_MAIL_PASSWORD=...
+  export SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+  export MAIL_FROM=uat-hub@yourco.com
+  ```
+  Each person needs an email address in **Team & access**, where their emails can also be switched off.
+  `DIGEST_ENABLED=false` turns the morning email off; `DIGEST_CRON` changes its time.
+- **Teams**: in the channel, **⋯ → Workflows → "Post to a channel when a webhook request is received"**, copy the URL
+  into **Projects & Jira → Teams webhook URL**, save, then **Send test message**. Messages are Adaptive Cards, the
+  format Teams Workflows webhooks accept.
+
+## Discussion and bulk actions
+
+- Every feedback item has a **Discussion** on its page and in Business review. Type `@` and a name (or click a name
+  under the box) to notify someone.
+- In the **Register**, QA leads can tick items and **Send to business review**, **Ask testers for more info** (one
+  message to each tester), **Set severity** or **Set type** in one go. Items already past that step are skipped and
+  counted.
+
+## AI assist (optional)
+
+Off by default. When switched on:
+
+- **Log feedback → Suggest type and severity** fills in the Type and Severity choices with a one-line reason.
+- **Triage → Check for duplicates with AI** compares the item with others in the project by meaning, not just shared
+  words, and offers to close it as a duplicate.
+- **User story**: for enhancements and future-release items, **Draft with AI** writes "As a … I want … so that …"
+  with Given/When/Then acceptance criteria. It's saved on the item, editable, and goes into the Jira issue.
+
+AI only suggests; people accept, change or ignore every suggestion.
+
+```bash
+# Claude (Anthropic API)
+export AI_PROVIDER=anthropic AI_API_KEY=sk-ant-...        # AI_MODEL defaults to claude-sonnet-5-5
+# or any OpenAI-compatible endpoint: a company AI gateway, OpenAI, or a local model server such as Ollama
+export AI_PROVIDER=openai AI_BASE_URL=http://localhost:11434/v1 AI_MODEL=llama3.1 # AI_API_KEY if it needs one
+```
+
+The feedback text (titles, descriptions, LOB, QA notes, decisions) is sent to the provider you choose. **Check your
+company's and client's data policy before switching it on**; a local model keeps everything on your network.
+
 ## Themes
 
 Everyone can pick **Dark**, **Light** or **Auto** (follows the computer's setting) at the bottom of the sidebar.
@@ -192,7 +261,10 @@ src/main/java/com/uathub
 │               UatCycle, Scenario, ScenarioStep, TestRun, Execution, StepResult, IssueLink, CycleSignOff, enums
 ├── repo/       Spring Data repositories
 ├── security/   AccessCookieFilter (replaces login), SecurityConfig, CurrentUser
-├── service/    FeedbackService, CycleService, TestingService, ScenarioService, JiraService, ExcelService,
+├── notify/     Notifier, NotificationDispatcher (email + Teams), DigestJob
+├── ai/         AiClient (Claude or OpenAI-compatible), AiService
+├── service/    FeedbackService, CycleService, TestingService, ScenarioService, ReportService, CommentService,
+│               JiraService, ExcelService,
 │               TeamService, AttachmentStorage, Bootstrap, SchemaFixes
 └── web/        Controllers, GlobalModel (nav + errors), Fmt (template helpers)
 src/main/resources

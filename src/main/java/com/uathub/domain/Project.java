@@ -24,6 +24,10 @@ public class Project {
     private String jiraLabels;       // comma separated, added to every issue
     private String jiraFixVersion;   // used for Defect / Enhancement decisions
 
+    /** Microsoft Teams incoming webhook (Workflows) for this project's channel. Optional. */
+    @Column(length = 1000)
+    private String teamsWebhook;
+
     private Instant createdAt = Instant.now();
 
     public Long getId() { return id; }
@@ -43,6 +47,8 @@ public class Project {
     public void setJiraLabels(String jiraLabels) { this.jiraLabels = jiraLabels; }
     public String getJiraFixVersion() { return jiraFixVersion; }
     public void setJiraFixVersion(String jiraFixVersion) { this.jiraFixVersion = jiraFixVersion; }
+    public String getTeamsWebhook() { return teamsWebhook; }
+    public void setTeamsWebhook(String teamsWebhook) { this.teamsWebhook = teamsWebhook; }
     public Instant getCreatedAt() { return createdAt; }
 
     public String issueTypeFor(Decision d) {

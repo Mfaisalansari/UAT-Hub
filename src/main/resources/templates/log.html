@@ -51,6 +51,11 @@
                     </div>
                 </fieldset>
 
+                <div class="ai-row" th:if="${aiEnabled}">
+                    <button type="button" class="btn ghost small-btn" data-ai-classify>Suggest type and severity</button>
+                    <span class="small muted-2" data-ai-result aria-live="polite">Fill in the title and what happened first. The suggestion only changes the choices above; you decide.</span>
+                </div>
+
                 <div class="grid2">
                     <div class="field">
                         <label for="module">Pega case type › stage</label>

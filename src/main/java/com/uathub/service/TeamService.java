@@ -41,9 +41,10 @@ public class TeamService {
     }
 
     @Transactional
-    public AppUser update(Long id, Role role, List<Long> projectIds) {
+    public AppUser update(Long id, Role role, List<Long> projectIds, boolean notifyEmail) {
         AppUser u = get(id);
         if (role != null) u.setRole(role);
+        u.setNotifyEmail(notifyEmail);
         setProjects(u, projectIds);
         return users.save(u);
     }

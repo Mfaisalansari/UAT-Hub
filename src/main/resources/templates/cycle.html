@@ -15,7 +15,8 @@
                 <h1 class="title" th:text="${cycle != null} ? ${cycle.name} : 'UAT cycle'"></h1>
             </div>
             <div class="actions" th:if="${cycle != null}">
-                <a class="btn ghost" th:href="@{/runs/cycle-export}">Export cycle report</a>
+                <a class="btn ghost" th:href="@{/runs/cycle-export}">Export scenarios</a>
+                <a class="btn primary" th:href="@{/runs/report}">Exit report</a>
             </div>
         </header>
 

@@ -45,6 +45,8 @@
             <div class="note" th:if="${item.qaNote != null}">
                 <span class="label lilac">QA note</span><p class="pre" th:text="${item.qaNote}"></p>
             </div>
+            <section th:replace="~{fragments :: discussion(${item}, ${comments}, ${mentionable}, 'review')}"></section>
+
             <div>
                 <h2 class="label">Trail</h2>
                 <ol th:replace="~{fragments :: trail(${trail})}"></ol>

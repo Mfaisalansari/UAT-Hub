@@ -12,4 +12,5 @@ public interface ExecutionRepository extends JpaRepository<Execution, Long> {
     List<Execution> findByRun(TestRun run);
     List<Execution> findByRunUatCycle(UatCycle cycle);
     List<Execution> findByRunUatCycleAndRunActiveTrueAndAssignee(UatCycle cycle, AppUser assignee);
+    List<Execution> findByAssigneeAndRunActiveTrueAndRunUatCycleOpenTrue(AppUser assignee);
 }

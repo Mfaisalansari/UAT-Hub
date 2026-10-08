@@ -3,6 +3,7 @@ package com.uathub.service;
 import com.uathub.config.UatHubProperties;
 import com.uathub.domain.*;
 import com.uathub.repo.*;
+import com.uathub.notify.Notifier;
 import com.uathub.web.FeedbackForm;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -50,11 +51,13 @@ public class TestingService {
     private final FeedbackService feedbackService;
     private final AttachmentStorage storage;
     private final UatHubProperties props;
+    private final Notifier notifier;
 
     public TestingService(TestRunRepository runs, ExecutionRepository executions, StepResultRepository results,
                           IssueLinkRepository links, CycleSignOffRepository signOffs, ScenarioRepository scenarios,
                           AppUserRepository users, FeedbackRepository feedbackRepo, FeedbackService feedbackService,
-                          AttachmentStorage storage, UatHubProperties props) {
+                          AttachmentStorage storage, UatHubProperties props, Notifier notifier) {
+        this.notifier = notifier;
         this.runs = runs;
         this.executions = executions;
         this.results = results;
@@ -99,6 +102,7 @@ public class TestingService {
         r.setBuild(blankToNull(build));
         r.setCreatedBy(by);
         r = runs.save(r);
+        Map<AppUser, Integer> copied = new LinkedHashMap<>();
         if (copyFromId != null && copyMode != null && !"none".equals(copyMode)) {
             TestRun from = loadRun(copyFromId, cycle.getProject());
             for (Execution old : executions.findByRun(from)) {
@@ -109,8 +113,10 @@ public class TestingService {
                 e.setScenario(old.getScenario());
                 e.setAssignee(old.getAssignee() != null && old.getAssignee().isActive() ? old.getAssignee() : null);
                 executions.save(e);
+                if (e.getAssignee() != null) copied.merge(e.getAssignee(), 1, Integer::sum);
             }
         }
+        notifyAssigned(r, copied, by);
         return r;
     }
 
@@ -145,8 +151,9 @@ public class TestingService {
      * A scenario already being worked on keeps its history; it is only unassigned, never deleted.
      */
     @Transactional
-    public int assign(TestRun run, Map<Long, Long> wanted) {
+    public int assign(TestRun run, Map<Long, Long> wanted, AppUser by) {
         Map<Long, Execution> current = executionsByScenario(run);
+        Map<AppUser, Integer> newWork = new LinkedHashMap<>();
         int changed = 0;
         for (Map.Entry<Long, Long> w : wanted.entrySet()) {
             Execution e = current.get(w.getKey());
@@ -176,9 +183,20 @@ public class TestingService {
             }
             e.setAssignee(person);
             executions.save(e);
+            newWork.merge(person, 1, Integer::sum);
             changed++;
         }
+        notifyAssigned(run, newWork, by);
         return changed;
+    }
+
+    private void notifyAssigned(TestRun run, Map<AppUser, Integer> newWork, AppUser by) {
+        String where = (run.getUatCycle() == null ? "" : run.getUatCycle().getName() + ", ") + run.getLabel();
+        for (Map.Entry<AppUser, Integer> w : newWork.entrySet()) {
+            notifier.send(run.getProject(), List.of(w.getKey()), by,
+                    w.getValue() + " scenario(s) assigned to you",
+                    w.getValue() + " UAT scenario(s) were assigned to you in " + where + ".", "/my", false);
+        }
     }
 
     // ---------------------------------------------------------------- my queue and execution
@@ -339,6 +357,12 @@ public class TestingService {
         f.setFoundInBuild(e.getRun().getBuild());
         feedbackRepo.save(f);
         links.save(new IssueLink(f, e, step.getStepNo()));
+        notifier.send(f.getProject(), notifier.people(f.getProject(), Role.QA_LEAD), by,
+                f.getCode() + " raised from " + s.getCode() + " (" + f.getSeverity().getLabel() + ")",
+                f.getTitle() + "\n\nFound by " + by.getName() + " in " + s.getCode() + " step " + step.getStepNo()
+                        + (e.getRun().getBuild() == null ? "" : " on build " + e.getRun().getBuild()) + ".\nExpected: "
+                        + (step.getExpected() == null ? "-" : step.getExpected()) + "\nActual: " + (r.getActual() == null ? "-" : r.getActual()),
+                "/feedback/" + f.getId(), true);
         feedbackService.log(f, by, "Raised from test run",
                 s.getCode() + " step " + step.getStepNo() + (e.getRun().getBuild() == null ? "" : ", " + e.getRun().getBuild()));
         return f;
@@ -399,12 +423,20 @@ public class TestingService {
             }
             retest.add(l.getExecution());
         }
+        Map<AppUser, List<String>> retestFor = new LinkedHashMap<>();
         for (Execution e : retest) {
             e.setAttempt(e.getAttempt() + 1);
             e.setStatus(ExecStatus.RETEST);
             e.setRetestBuild(b);
             e.setFinishedAt(null);
             executions.save(e);
+            if (e.getAssignee() != null) {
+                retestFor.computeIfAbsent(e.getAssignee(), k -> new ArrayList<>()).add(e.getScenario().getCode() + "  " + e.getScenario().getTitle());
+            }
+        }
+        for (Map.Entry<AppUser, List<String>> r : retestFor.entrySet()) {
+            notifier.send(run.getProject(), List.of(r.getKey()), by, "Re-test ready on build " + b,
+                    "Build " + b + " fixes issues you found. Please re-run:\n\n" + String.join("\n", r.getValue()), "/my", false);
         }
         return retest.size();
     }
@@ -543,9 +575,18 @@ public class TestingService {
     }
 
     private byte[] export(List<Execution> source, String sheetName) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            scenarioSheet(wb, source, sheetName);
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    /** Adds a sheet with one row per execution; used by the run export, cycle export and exit report. */
+    public void scenarioSheet(Workbook wb, List<Execution> source, String sheetName) {
         String[] head = {"Scenario", "Title", "LOB", "Division", "Priority", "Run", "Build", "Assigned to", "Status", "Attempt",
                 "Steps passed", "Steps failed", "Steps blocked", "Steps", "Issues", "Finished"};
-        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        {
             Sheet sheet = wb.createSheet(sheetName);
             CellStyle bold = wb.createCellStyle();
             Font font = wb.createFont();
@@ -580,8 +621,6 @@ public class TestingService {
                 }
             }
             sheet.createFreezePane(0, 1);
-            wb.write(out);
-            return out.toByteArray();
         }
     }
 

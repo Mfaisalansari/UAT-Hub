@@ -29,6 +29,9 @@ public class AppUser {
 
     private boolean active = true;
 
+    /** Email notifications on (null counts as on). Wrapper type so the column can be added to existing data. */
+    private Boolean notifyEmail;
+
     /** BCrypt hash of the optional 4-digit PIN. */
     private String pinHash;
 
@@ -53,6 +56,9 @@ public class AppUser {
     public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public boolean isNotifyEmail() { return notifyEmail == null || notifyEmail; }
+    public void setNotifyEmail(boolean notifyEmail) { this.notifyEmail = notifyEmail; }
+    public boolean isEmailable() { return active && email != null && !email.isBlank() && isNotifyEmail(); }
     public String getPinHash() { return pinHash; }
     public void setPinHash(String pinHash) { this.pinHash = pinHash; }
     public Instant getCreatedAt() { return createdAt; }

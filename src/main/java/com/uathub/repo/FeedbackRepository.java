@@ -16,6 +16,8 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     List<Feedback> findByProjectAndUatCycleOrderByIdDesc(Project project, UatCycle cycle);
     long countByProjectAndUatCycle(Project project, UatCycle cycle);
     long countByUatCycle(UatCycle cycle);
+    long countByUatCycleAndStage(UatCycle cycle, Stage stage);
+    List<Feedback> findByRaisedByAndStageAndUatCycleOpenTrue(com.uathub.domain.AppUser raisedBy, Stage stage);
     List<Feedback> findByProjectAndUatCycleIsNull(Project project);
     long countByProjectAndStage(Project project, Stage stage);
 }

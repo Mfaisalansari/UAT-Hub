@@ -77,11 +77,19 @@
                             <th:block th:if="${previewItem.actual != null}"><dt>Actual</dt><dd th:text="${previewItem.actual}"></dd></th:block>
                             <dt>Business decision</dt><dd th:text="${previewItem.decision.label} + (${previewItem.targetRelease} != null ? ', target ' + ${previewItem.targetRelease} : '')"></dd>
                             <dt>Rationale</dt><dd th:text="${previewItem.decisionRationale}"></dd>
+                            <th:block th:if="${previewItem.storyDraft != null}"><dt>User story</dt><dd th:text="${previewItem.storyDraft}"></dd></th:block>
                             <th:block th:if="${preview.fixVersion != null}"><dt>Fix version</dt><dd th:text="${preview.fixVersion}"></dd></th:block>
                         </dl>
                         <div class="paper-tags">
                             <span th:each="l : ${preview.labels}" th:text="${l}"></span>
                         </div>
+                        <form th:if="${previewItem.storyDraft == null and previewItem.decision.name() != 'DEFECT'}" method="post"
+                              th:action="@{/feedback/{id}/ai/story(id=${previewItem.id})}"
+                              class="paper-ai">
+                            <input type="hidden" name="back" value="jira">
+                            <button th:if="${aiEnabled}" class="btn ghost small-btn" type="submit">Draft user story with AI</button>
+                            <a th:unless="${aiEnabled}" class="small" th:href="@{/feedback/{id}(id=${previewItem.id}) + '#story'}">Add a user story</a>
+                        </form>
                         <p class="paper-foot">Attachments are uploaded too. The issue links back to <span th:text="${previewItem.code}"></span>.</p>
                     </article>
                 </th:block>

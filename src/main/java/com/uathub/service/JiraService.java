@@ -199,6 +199,7 @@ public class JiraService {
         s.add(new String[]{"UAT reference", f.getCode() + " (" + f.getLobDivision() + ")"});
         s.add(new String[]{"Where", f.getWhere()});
         s.add(new String[]{"Type / severity", f.getType().getLabel() + " / " + f.getSeverity().getLabel()});
+        s.add(new String[]{"User story", f.getStoryDraft()});
         s.add(new String[]{"Details", f.getDescription()});
         s.add(new String[]{"Expected", f.getExpected()});
         s.add(new String[]{"Actual", f.getActual()});
@@ -220,9 +221,14 @@ public class JiraService {
     private static Map<String, Object> adf(List<String[]> sections) {
         List<Object> content = new ArrayList<>();
         for (String[] s : sections) {
-            content.add(Map.of("type", "paragraph", "content", List.of(
-                    Map.of("type", "text", "text", s[0] + ": ", "marks", List.of(Map.of("type", "strong"))),
-                    Map.of("type", "text", "text", s[1]))));
+            List<Object> parts = new ArrayList<>();
+            parts.add(Map.of("type", "text", "text", s[0] + ": ", "marks", List.of(Map.of("type", "strong"))));
+            String[] lines = s[1].split("\\r?\\n");
+            for (int i = 0; i < lines.length; i++) {
+                if (i > 0) parts.add(Map.of("type", "hardBreak"));
+                if (!lines[i].isEmpty()) parts.add(Map.of("type", "text", "text", lines[i]));
+            }
+            content.add(Map.of("type", "paragraph", "content", parts));
         }
         return Map.of("type", "doc", "version", 1, "content", content);
     }

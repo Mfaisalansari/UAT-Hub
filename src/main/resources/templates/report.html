@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${'UAT exit report · ' + r.cycle().name})}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('runs')}"></nav>
+    <main class="main report">
+        <header class="page-head">
+            <div>
+                <p class="crumb"><span th:text="${r.project().name}"></span>
+                    <span th:if="${r.cycle().releaseName != null}" th:text="${r.cycle().releaseName}"></span>
+                    <span th:if="${!r.cycle().dates.isEmpty()}" th:text="${r.cycle().dates}"></span>
+                    <span th:text="${r.cycle().open} ? 'Cycle open' : 'Cycle closed'"></span></p>
+                <h1 class="title">UAT exit report</h1>
+                <p class="report-sub" th:text="${r.cycle().name}"></p>
+            </div>
+            <div class="actions no-print">
+                <a class="btn ghost" th:href="@{/runs}">Back to cycle</a>
+                <a class="btn ghost" th:href="@{/runs/report.xlsx}">Download Excel</a>
+                <button class="btn primary" type="button" data-print>Print or save as PDF</button>
+            </div>
+        </header>
+
+        <p class="verdict" th:classappend="${r.complete()} ? 'done' : ''" th:text="${r.verdict()}"></p>
+
+        <section class="facts" aria-label="Summary">
+            <div><span>Scenarios in scope</span><b th:text="${r.totals().total()}"></b></div>
+            <div><span>Pass rate of executed</span><b th:text="${r.passRate() != null} ? ${r.passRate()} + '%' : '–'"></b></div>
+            <div><span>Passed</span><b class="c-pass" th:text="${r.totals().passed()}"></b></div>
+            <div><span>Failed</span><b class="c-fail" th:text="${r.totals().failed()}"></b></div>
+            <div><span>Blocked</span><b class="c-blocked" th:text="${r.totals().blocked()}"></b></div>
+            <div><span>Not run or re-test</span><b th:text="${r.totals().notRun() + r.totals().retest()}"></b></div>
+            <div><span>Feedback items</span><b th:text="${r.feedbackTotal()}"></b></div>
+            <div><span>Still open</span><b th:classappend="${!r.openItems().isEmpty()} ? 'c-fail' : ''" th:text="${r.openItems().size()}"></b></div>
+        </section>
+        <p class="small muted-2">Each scenario counts once, with its result in the newest run where it was started.</p>
+
+        <section class="report-section">
+            <h2 class="h2">By line of business</h2>
+            <p class="small muted-2" th:if="${r.lobs().isEmpty()}">No scenarios were assigned in this cycle.</p>
+            <div class="table-wrap" th:unless="${r.lobs().isEmpty()}">
+                <table class="table compact">
+                    <thead><tr><th>Line of business</th><th>Scenarios</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Not run</th><th>Pass rate</th><th>Open issues</th><th>Business sign-off</th></tr></thead>
+                    <tbody>
+                    <tr th:each="l : ${r.lobs()}">
+                        <td><b th:text="${l.lob()}"></b></td>
+                        <td class="mono" th:text="${l.totals().total()}"></td>
+                        <td class="mono c-pass" th:text="${l.totals().passed()}"></td>
+                        <td class="mono c-fail" th:text="${l.totals().failed()}"></td>
+                        <td class="mono c-blocked" th:text="${l.totals().blocked()}"></td>
+                        <td class="mono muted" th:text="${l.totals().notRun() + l.totals().retest()}"></td>
+                        <td class="mono" th:text="${l.passRate() != null} ? ${l.passRate()} + '%' : '–'"></td>
+                        <td class="mono" th:classappend="${l.openIssues() > 0} ? 'c-fail' : 'muted'" th:text="${l.openIssues()}"></td>
+                        <td>
+                            <th:block th:if="${l.signOff() != null}">
+                                <b th:text="${l.signOff().signedBy != null} ? ${l.signOff().signedBy.name} : 'Signed off'"></b>
+                                <small class="block muted" th:text="${@fmt.full(l.signOff().signedAt)}"></small>
+                                <small class="block muted-2" th:if="${l.signOff().note != null}" th:text="${l.signOff().note}"></small>
+                            </th:block>
+                            <span th:if="${l.signOff() == null}" class="c-blocked">Not signed off</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="report-section" th:unless="${r.exceptions().isEmpty()}">
+            <h2 class="h2">Accepted at sign-off</h2>
+            <p class="small muted-2">Open issues business agreed to go live with.</p>
+            <ul class="plain-list">
+                <li th:each="s : ${r.exceptions()}"><b th:text="${s.lob}"></b>: <span class="mono" th:text="${s.acceptedIssues}"></span>
+                    <span class="muted-2" th:if="${s.note != null}" th:text="' · ' + ${s.note}"></span></li>
+            </ul>
+        </section>
+
+        <div class="report-two">
+            <section class="report-section">
+                <h2 class="h2">Feedback by severity</h2>
+                <p class="small muted-2" th:if="${r.bySeverity().isEmpty()}">No feedback was logged in this cycle.</p>
+                <div class="table-wrap" th:unless="${r.bySeverity().isEmpty()}">
+                    <table class="table compact">
+                        <thead><tr><th>Type</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Total</th></tr></thead>
+                        <tbody>
+                        <tr th:each="x : ${r.bySeverity()}">
+                            <td th:text="${x.type()}"></td>
+                            <td class="mono" th:classappend="${x.critical() > 0} ? 'c-fail' : 'muted'" th:text="${x.critical()}"></td>
+                            <td class="mono" th:classappend="${x.high() > 0} ? 'c-blocked' : 'muted'" th:text="${x.high()}"></td>
+                            <td class="mono" th:text="${x.medium()}"></td>
+                            <td class="mono muted" th:text="${x.low()}"></td>
+                            <td class="mono"><b th:text="${x.total()}"></b></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="report-section">
+                <h2 class="h2">Where feedback ended up</h2>
+                <dl class="kv-list" th:unless="${r.outcomes().isEmpty()}">
+                    <th:block th:each="c : ${r.outcomes()}"><dt th:text="${c.label()}"></dt><dd class="mono" th:text="${c.value()}"></dd></th:block>
+                </dl>
+                <p class="small muted-2" th:if="${r.outcomes().isEmpty()}">Nothing yet.</p>
+            </section>
+        </div>
+
+        <section class="report-section">
+            <h2 class="h2">Open items <span class="mono muted small" th:text="${r.openItems().size()}"></span></h2>
+            <p class="small muted-2" th:if="${r.openItems().isEmpty()}">Every feedback item in this cycle is closed.</p>
+            <div class="table-wrap" th:unless="${r.openItems().isEmpty()}">
+                <table class="table compact">
+                    <thead><tr><th>ID</th><th>Title</th><th>LOB</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr></thead>
+                    <tbody>
+                    <tr th:each="f : ${r.openItems()}">
+                        <td class="mono id"><a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a></td>
+                        <td th:text="${f.title}"></td>
+                        <td class="muted-2" th:text="${f.lobDivision}"></td>
+                        <td><span th:replace="~{fragments :: sev(${f})}"></span></td>
+                        <td class="muted-2" th:text="${f.stage.label}"></td>
+                        <td class="muted-2" th:text="${f.decision != null} ? ${f.decision.label} : '—'"></td>
+                        <td class="mono" th:text="${f.jiraKey} ?: '—'"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="report-section" th:unless="${r.runs().isEmpty()}">
+            <h2 class="h2">Runs</h2>
+            <div class="table-wrap">
+                <table class="table compact">
+                    <thead><tr><th>Run</th><th>Build</th><th>Status</th><th>Scenarios</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Done</th></tr></thead>
+                    <tbody>
+                    <tr th:each="c : ${r.runs()}">
+                        <td><b th:text="${c.run().name}"></b></td>
+                        <td class="mono" th:text="${c.run().build} ?: '—'"></td>
+                        <td class="muted-2" th:text="${c.run().active} ? 'Open' : 'Closed'"></td>
+                        <td class="mono" th:text="${c.totals().total()}"></td>
+                        <td class="mono c-pass" th:text="${c.totals().passed()}"></td>
+                        <td class="mono c-fail" th:text="${c.totals().failed()}"></td>
+                        <td class="mono c-blocked" th:text="${c.totals().blocked()}"></td>
+                        <td class="mono" th:text="${c.totals().percentDone()} + '%'"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="report-section" th:if="${r.comparison().size() > 1}">
+            <h2 class="h2">Compared with other cycles</h2>
+            <div class="table-wrap">
+                <table class="table compact">
+                    <thead><tr><th>UAT cycle</th><th>Scenarios</th><th>Executed</th><th>Pass rate</th><th>Feedback</th><th>Bugs</th><th>Open critical/high</th><th>LOBs signed off</th></tr></thead>
+                    <tbody>
+                    <tr th:each="c : ${r.comparison()}" th:classappend="${c.cycle().id == r.cycle().id} ? 'row-on'">
+                        <td><b th:text="${c.cycle().name}"></b></td>
+                        <td class="mono" th:text="${c.scenarios()}"></td>
+                        <td class="mono" th:text="${c.executed()}"></td>
+                        <td class="mono" th:text="${c.passRate() != null} ? ${c.passRate()} + '%' : '–'"></td>
+                        <td class="mono" th:text="${c.feedback()}"></td>
+                        <td class="mono" th:text="${c.bugs()}"></td>
+                        <td class="mono" th:classappend="${c.openHighCritical() > 0} ? 'c-fail' : 'muted'" th:text="${c.openHighCritical()}"></td>
+                        <td class="mono" th:text="${c.signedLobs()} + ' of ' + ${c.lobs()}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <p class="small muted report-foot" th:text="'Generated ' + ${r.generated()} + (${r.generatedBy()} != null ? ' by ' + ${r.generatedBy()} : '') + ' from UAT Hub.'"></p>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

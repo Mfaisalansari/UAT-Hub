@@ -73,6 +73,7 @@ public class RegisterController {
                 .map(s -> new StageCount(s, items.stream().filter(f -> f.getStage() == s).count())).toList());
         model.addAttribute("rows", rows);
         model.addAttribute("types", FeedbackType.values());
+        model.addAttribute("severities", Severity.values());
         model.addAttribute("q", q);
         model.addAttribute("fLob", lob);
         model.addAttribute("fDivision", division);

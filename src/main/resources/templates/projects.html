@@ -22,6 +22,12 @@
             <button class="btn primary" type="submit">Create project</button>
         </form>
 
+        <p class="note small">
+            <b th:text="${emailConfigured} ? 'Email is on.' : 'Email is off.'"></b>
+            <span th:if="${emailConfigured}">People with an email address get messages when something needs them, plus a weekday to-do email. Each person can be switched off in Team &amp; access.</span>
+            <span th:unless="${emailConfigured}">Set SPRING_MAIL_HOST (and the other SMTP settings in application.properties) and restart to send emails. Teams messages work without it.</span>
+        </p>
+
         <div class="project-grid">
             <form th:each="p : ${allProjects}" class="card stack-sm" method="post" th:action="@{/projects/{id}(id=${p.id})}">
                 <div class="grid2">
@@ -47,7 +53,15 @@
                     <div class="field"><label th:for="'fix-' + ${p.id}">Fix version</label>
                         <input th:id="'fix-' + ${p.id}" name="jiraFixVersion" th:value="${p.jiraFixVersion}" placeholder="Must exist in Jira"></div>
                 </div>
-                <button class="btn ghost" type="submit">Save project</button>
+                <h3 class="label">Notifications</h3>
+                <div class="field"><label th:for="'teams-' + ${p.id}">Teams webhook URL</label>
+                    <input th:id="'teams-' + ${p.id}" name="teamsWebhook" th:value="${p.teamsWebhook}" class="mono small"
+                           placeholder="https://… from Teams: channel ⋯ › Workflows › Post to a channel when a webhook request is received"></div>
+                <div class="form-foot tight">
+                    <button class="btn ghost" type="submit">Save project</button>
+                    <button th:if="${p.teamsWebhook != null}" class="btn ghost" type="submit"
+                            th:formaction="@{/projects/{id}/teams-test(id=${p.id})}" formnovalidate>Send test message</button>
+                </div>
             </form>
         </div>
     </main>

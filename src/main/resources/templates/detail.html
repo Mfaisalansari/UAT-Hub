@@ -61,6 +61,8 @@
                 <p class="note" th:if="${f.duplicateOf != null}">Closed as a duplicate of
                     <a class="mono" th:href="@{/feedback/{id}(id=${f.duplicateOf})}" th:text="${@fmt.code(f.duplicateOf)}"></a>.</p>
 
+                <section th:replace="~{fragments :: discussion(${f}, ${comments}, ${mentionable}, 'detail')}"></section>
+
                 <div>
                     <h2 class="label">Trail</h2>
                     <ol th:replace="~{fragments :: trail(${trail})}"></ol>
@@ -68,6 +70,23 @@
             </section>
 
             <aside class="side-stack">
+                <!-- AI duplicate check results -->
+                <section class="card ai-card" th:if="${aiDupes != null and !aiDupes.isEmpty()}">
+                    <h2 class="h3">Possible duplicates</h2>
+                    <p class="small muted-2">Suggested by AI. Open each one before closing anything.</p>
+                    <div class="ai-hit" th:each="d : ${aiDupes}">
+                        <a class="mono" th:href="@{/feedback/{id}(id=${d.id()})}" th:text="${d.code()}" target="_blank"></a>
+                        <span th:text="${d.title()}"></span>
+                        <small class="muted" th:text="${d.stage()} + ' · ' + ${d.reason()}"></small>
+                        <form th:if="${me.canTriage() and f.stage.openForTriage}" method="post" th:action="@{/feedback/{id}/triage(id=${f.id})}">
+                            <input type="hidden" name="duplicateOf" th:value="${d.code()}">
+                            <input type="hidden" name="qaNote" th:value="${f.qaNote}">
+                            <button class="linkish" type="submit" name="action" value="duplicate"
+                                    th:text="'Close ' + ${f.code} + ' as a duplicate of ' + ${d.code()}"></button>
+                        </form>
+                    </div>
+                </section>
+
                 <!-- QA triage -->
                 <section class="card" th:if="${me.canTriage() and f.stage.openForTriage}">
                     <h2 class="h3">Triage</h2>
@@ -93,6 +112,8 @@
                         </div>
                         <button class="btn primary wide" type="submit" name="action" value="send">Send to business review</button>
                         <button class="btn ghost wide" type="submit" name="action" value="info">Ask tester for more info</button>
+                        <button th:if="${aiEnabled}" class="btn ghost wide" type="submit" formnovalidate
+                                th:formaction="@{/feedback/{id}/ai/duplicates(id=${f.id})}">Check for duplicates with AI</button>
                         <div class="dup-row">
                             <label class="sr" for="dup">Original item ID</label>
                             <input id="dup" name="duplicateOf" placeholder="UAT-0042" class="mono">
@@ -112,6 +133,23 @@
                    th:href="@{/jira(preview=${f.id})}">Prepare Jira issue</a>
                 <a th:if="${f.jiraUrl != null}" class="btn ghost wide mono" th:href="${f.jiraUrl}" target="_blank" rel="noopener"
                    th:text="'Open ' + ${f.jiraKey} + ' in Jira ↗'"></a>
+
+                <!-- User story for enhancements, sent to Jira -->
+                <section class="card" id="story" th:if="${me.canTriage() and (f.storyDraft != null or f.type.name() == 'ENHANCEMENT'
+                        or (f.decision != null and (f.decision.name() == 'ENHANCEMENT' or f.decision.name() == 'FUTURE_RELEASE')))}">
+                    <h2 class="h3">User story</h2>
+                    <p class="small muted-2">Goes into the Jira issue with its acceptance criteria.</p>
+                    <form method="post" th:action="@{/feedback/{id}/story(id=${f.id})}" class="stack-sm">
+                        <label class="sr" for="story-text">User story and acceptance criteria</label>
+                        <textarea id="story-text" name="story" rows="9" maxlength="4000" th:text="${f.storyDraft}"
+                                  placeholder="As a <role>, I want <capability>, so that <benefit>.&#10;&#10;Acceptance criteria:&#10;- Given … When … Then …"></textarea>
+                        <button class="btn ghost wide" type="submit">Save story</button>
+                        <button th:if="${aiEnabled}" class="btn ghost wide" type="submit" formnovalidate
+                                th:formaction="@{/feedback/{id}/ai/story(id=${f.id})}"
+                                th:attr="data-confirm=${f.storyDraft != null} ? 'Replace the current story with a new AI draft?' : null"
+                                th:text="${f.storyDraft != null} ? 'Redraft with AI' : 'Draft with AI'"></button>
+                    </form>
+                </section>
 
                 <!-- Edit -->
                 <details class="card" th:if="${canEdit}" th:open="${f.stage.name() == 'NEEDS_INFO' and !me.canTriage()}">

@@ -59,13 +59,37 @@
             <a th:if="${filtered}" class="linkish" th:href="${allCycles} ? @{/(all=true)} : @{/}">Clear filters</a>
         </form>
 
-        <div class="table-wrap" th:unless="${rows.isEmpty()}">
+        <form id="bulk-form" method="post" th:action="@{/feedback/bulk}" class="stack-sm" th:unless="${rows.isEmpty()}">
+        <div class="bulk-bar" th:if="${me.canTriage()}">
+            <span class="small"><b class="mono" data-count>0</b> ticked</span>
+            <label class="sr" for="bulk-action">Action</label>
+            <select id="bulk-action" name="action" data-bulk-action required>
+                <option value="">Choose an action</option>
+                <option value="send">Send to business review</option>
+                <option value="info">Ask testers for more info</option>
+                <option value="severity">Set severity</option>
+                <option value="type">Set type</option>
+            </select>
+            <label class="sr" for="bulk-sev">Severity</label>
+            <select id="bulk-sev" name="severity" data-bulk-for="severity">
+                <option th:each="v : ${severities}" th:value="${v.name()}" th:text="${v.label}"></option>
+            </select>
+            <label class="sr" for="bulk-type">Type</label>
+            <select id="bulk-type" name="type" data-bulk-for="type">
+                <option th:each="t : ${types}" th:value="${t.name()}" th:text="${t.label}"></option>
+            </select>
+            <label class="sr" for="bulk-note">What information is needed</label>
+            <input id="bulk-note" name="note" data-bulk-for="info" placeholder="What information do you need?" class="grow-input">
+            <button class="btn primary small-btn" type="submit">Apply to ticked</button>
+        </div>
+        <div class="table-wrap">
             <table class="table">
                 <thead>
-                <tr><th>ID</th><th th:if="${allCycles}">Cycle</th><th>Feedback</th><th>LOB / division</th><th>Type</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr>
+                <tr><th class="check" th:if="${me.canTriage()}"><input type="checkbox" data-select-all="ids" aria-label="Tick all shown"></th><th>ID</th><th th:if="${allCycles}">Cycle</th><th>Feedback</th><th>LOB / division</th><th>Type</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="f : ${rows}">
+                    <td class="check" th:if="${me.canTriage()}"><input type="checkbox" name="ids" th:value="${f.id}" th:attr="aria-label='Tick ' + ${f.code}"></td>
                     <td class="mono id"><a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a></td>
                     <td th:if="${allCycles}" class="muted-2 small" th:text="${f.cycle} ?: '—'"></td>
                     <td class="title-cell">
@@ -85,6 +109,7 @@
                 </tbody>
             </table>
         </div>
+        </form>
 
         <div class="empty" th:if="${rows.isEmpty()}">
             <h2 th:text="${filtered} ? 'Nothing matches these filters' : 'No feedback logged yet'"></h2>

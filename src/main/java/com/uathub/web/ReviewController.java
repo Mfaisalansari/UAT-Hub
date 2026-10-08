@@ -23,8 +23,11 @@ public class ReviewController {
     private final FeedbackRepository repo;
     private final FeedbackService service;
     private final AttachmentStorage storage;
+    private final com.uathub.service.CommentService comments;
 
-    public ReviewController(ProjectContext ctx, FeedbackRepository repo, FeedbackService service, AttachmentStorage storage) {
+    public ReviewController(ProjectContext ctx, FeedbackRepository repo, FeedbackService service, AttachmentStorage storage,
+                            com.uathub.service.CommentService comments) {
+        this.comments = comments;
         this.ctx = ctx;
         this.repo = repo;
         this.service = service;
@@ -45,6 +48,8 @@ public class ReviewController {
         if (item != null) {
             model.addAttribute("files", storage.list(item));
             model.addAttribute("trail", service.trail(item));
+            model.addAttribute("comments", comments.thread(item));
+            model.addAttribute("mentionable", comments.mentionable(item));
         }
         return "review";
     }

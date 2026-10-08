@@ -33,11 +33,13 @@ public class FeedbackController {
     private final AttachmentRepository attachments;
     private final com.uathub.service.TestingService testing;
     private final com.uathub.service.CycleService cycles;
+    private final com.uathub.service.CommentService comments;
 
     public FeedbackController(ProjectContext ctx, FeedbackService service, AttachmentStorage storage,
                               AttachmentRepository attachments, com.uathub.service.TestingService testing,
-                              com.uathub.service.CycleService cycles) {
+                              com.uathub.service.CycleService cycles, com.uathub.service.CommentService comments) {
         this.cycles = cycles;
+        this.comments = comments;
         this.ctx = ctx;
         this.service = service;
         this.storage = storage;
@@ -78,6 +80,8 @@ public class FeedbackController {
         model.addAttribute("trail", service.trail(f));
         model.addAttribute("canEdit", service.canEdit(f, user));
         model.addAttribute("testLinks", testing.links(f));
+        model.addAttribute("comments", comments.thread(f));
+        model.addAttribute("mentionable", comments.mentionable(f));
         model.addAttribute("types", FeedbackType.values());
         model.addAttribute("severities", Severity.values());
         return "detail";
@@ -112,6 +116,36 @@ public class FeedbackController {
             default -> f.getCode() + " closed as a duplicate.";
         });
         return "redirect:/feedback/" + id;
+    }
+
+    @PostMapping("/feedback/bulk")
+    public String bulk(@AuthenticationPrincipal CurrentUser me, HttpSession session,
+                       @RequestParam(value = "ids", required = false) List<Long> ids,
+                       @RequestParam(defaultValue = "") String action,
+                       @RequestParam(required = false) FeedbackType type,
+                       @RequestParam(required = false) Severity severity,
+                       @RequestParam(required = false) String note,
+                       jakarta.servlet.http.HttpServletRequest req, RedirectAttributes ra) {
+        FeedbackService.BulkResult r = service.bulk(ctx.require(me, session), ctx.user(me), ids, action, type, severity, note);
+        String verb = switch (action) {
+            case "send" -> "Sent " + r.done() + " item(s) to business review";
+            case "info" -> "Asked for more information on " + r.done() + " item(s)";
+            case "type" -> "Changed the type of " + r.done() + " item(s)";
+            default -> "Changed the severity of " + r.done() + " item(s)";
+        };
+        ra.addFlashAttribute("ok", verb + "." + (r.skipped() == 0 ? ""
+                : " Skipped " + r.skipped() + " that were already past that step or unchanged."));
+        return "redirect:" + GlobalModel.sameSitePath(req.getHeader("Referer"));
+    }
+
+    @PostMapping("/feedback/{id}/comments")
+    public String comment(@AuthenticationPrincipal CurrentUser me, @PathVariable Long id, @RequestParam String text,
+                          @RequestParam(required = false) String back, RedirectAttributes ra) {
+        AppUser user = ctx.user(me);
+        Feedback f = service.load(id, user);
+        comments.add(f, user, text);
+        ra.addFlashAttribute("ok", "Comment added.");
+        return "review".equals(back) ? "redirect:/review?id=" + id + "#discussion" : "redirect:/feedback/" + id + "#discussion";
     }
 
     @GetMapping("/attachments/{id}")

@@ -61,6 +61,8 @@
                                             <label th:each="p : ${allProjects}"><input type="checkbox" name="projectIds" th:value="${p.id}"
                                                    th:checked="${u.projects.contains(p)}"><span th:text="${p.name}"></span></label>
                                         </div>
+                                        <label class="checks"><input type="checkbox" name="notifyEmail" value="true"
+                                               th:checked="${u.notifyEmail}"><span th:text="${u.email != null} ? 'Email notifications' : 'Email notifications (add an email first)'"></span></label>
                                         <button class="btn ghost small-btn" type="submit">Save</button>
                                     </form>
                                 </details>
@@ -69,6 +71,7 @@
                                 <b class="status" th:classappend="'st-' + ${u.status.toLowerCase()}" th:text="${u.status}"></b>
                                 <small class="muted-2 block" th:text="${u.lastSeenAt != null} ? 'Seen ' + ${@fmt.when(u.lastSeenAt)} : (${u.active} ? 'Link not opened yet' : '')"></small>
                                 <small class="muted-2 block" th:if="${requirePin and u.pinHash != null}">PIN set</small>
+                                <small class="muted-2 block" th:if="${u.email != null and !u.notifyEmail}">Emails off</small>
                             </td>
                             <td>
                                 <div class="link-box" th:if="${u.active}">

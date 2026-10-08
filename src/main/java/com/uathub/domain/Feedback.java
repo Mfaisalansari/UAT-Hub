@@ -61,6 +61,10 @@ public class Feedback {
     private String jiraUrl;
     private Long duplicateOf;
 
+    /** User story with acceptance criteria for enhancements, sent to Jira. Drafted by hand or with AI assist. */
+    @Column(length = 4000)
+    private String storyDraft;
+
     /** Build under test when the issue was found while running a scenario. */
     private String foundInBuild;
     /** Set when QA deploys a build that fixes it; linked scenarios then go back for re-test. */
@@ -143,6 +147,8 @@ public class Feedback {
     public void setJiraUrl(String jiraUrl) { this.jiraUrl = jiraUrl; }
     public Long getDuplicateOf() { return duplicateOf; }
     public void setDuplicateOf(Long duplicateOf) { this.duplicateOf = duplicateOf; }
+    public String getStoryDraft() { return storyDraft; }
+    public void setStoryDraft(String storyDraft) { this.storyDraft = storyDraft; }
     public String getFoundInBuild() { return foundInBuild; }
     public void setFoundInBuild(String foundInBuild) { this.foundInBuild = foundInBuild; }
     public String getFixedInBuild() { return fixedInBuild; }

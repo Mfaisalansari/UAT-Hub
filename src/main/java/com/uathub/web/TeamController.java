@@ -58,8 +58,9 @@ public class TeamController {
 
     @PostMapping("/{id}/update")
     public String update(@PathVariable Long id, @RequestParam Role role,
-                         @RequestParam(required = false) List<Long> projectIds, RedirectAttributes ra) {
-        AppUser u = team.update(id, role, projectIds);
+                         @RequestParam(required = false) List<Long> projectIds,
+                         @RequestParam(defaultValue = "false") boolean notifyEmail, RedirectAttributes ra) {
+        AppUser u = team.update(id, role, projectIds, notifyEmail);
         ra.addFlashAttribute("ok", "Updated " + u.getName() + ".");
         return "redirect:/team";
     }

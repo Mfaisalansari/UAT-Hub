@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Scenario library')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('scenarios')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb">Reusable across UAT cycles</p>
+                <h1 class="title">Scenario library</h1>
+            </div>
+            <div class="actions">
+                <form method="post" enctype="multipart/form-data" class="inline"
+                      th:action="@{/scenarios/import(_csrf=${_csrf.token})}">
+                    <label class="btn ghost file-btn">Import Excel
+                        <input type="file" name="file" accept=".xlsx,.xls" data-autosubmit hidden>
+                    </label>
+                </form>
+                <a class="btn primary" th:href="@{/scenarios/new}">+ New scenario</a>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <form class="filters" method="get" th:action="@{/scenarios}">
+            <label class="sr" for="sq">Search scenarios</label>
+            <input id="sq" type="search" name="q" th:value="${q}" placeholder="Search ID, title, module">
+            <label class="sr" for="sl">Line of business</label>
+            <select id="sl" name="lob" data-autosubmit>
+                <option value="">All LOBs</option>
+                <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}" th:selected="${l == fLob}"></option>
+            </select>
+            <input type="hidden" name="archived" th:value="${archived}">
+            <button class="btn ghost" type="submit">Search</button>
+            <a class="linkish" th:href="@{/scenarios(archived=${!archived})}"
+               th:text="${archived} ? 'Show active (' + ${activeCount} + ')' : 'Show archived (' + ${archivedCount} + ')'"></a>
+        </form>
+
+        <div class="split lib-split">
+            <section>
+                <div class="table-wrap" th:unless="${rows.isEmpty()}">
+                    <table class="table">
+                        <thead><tr><th>ID</th><th>Scenario</th><th>LOB / division</th><th>Steps</th><th>Priority</th></tr></thead>
+                        <tbody>
+                        <tr th:each="s : ${rows}" th:classappend="${sel != null and s.id == sel.id} ? 'row-on'">
+                            <td class="mono id"><a th:href="@{/scenarios(id=${s.id}, q=${q}, lob=${fLob}, archived=${archived})}" th:text="${s.code}"></a></td>
+                            <td class="title-cell"><a th:href="@{/scenarios(id=${s.id}, q=${q}, lob=${fLob}, archived=${archived})}" th:text="${s.title}"></a>
+                                <small th:text="${s.module}"></small></td>
+                            <td class="muted-2" th:text="${s.lobDivision}"></td>
+                            <td class="mono" th:text="${s.steps.size()}"></td>
+                            <td><span class="pri" th:classappend="'p-' + ${s.priority.css}" th:text="${s.priority.label}"></span></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty" th:if="${rows.isEmpty()}">
+                    <h2 th:text="${archived} ? 'No archived scenarios' : 'No scenarios yet'"></h2>
+                    <p th:unless="${archived}">Import your scenario sheet with <b>Import Excel</b>: one row per step with columns
+                        Scenario ID, Title, LOB, Division, Module, Priority, Preconditions, Test data, Step, Action, Expected.
+                        Rows with the same Scenario ID become one scenario.</p>
+                </div>
+            </section>
+
+            <aside class="side-stack" th:if="${sel != null}">
+                <p class="mono small"><span class="lime" th:text="${sel.code}"></span>
+                    <span class="muted" th:text="' · ' + ${sel.lobDivision}"></span></p>
+                <h2 class="h2" th:text="${sel.title}"></h2>
+                <div class="pre-box" th:if="${sel.preconditions != null or sel.testData != null}">
+                    <span class="label">Preconditions &amp; test data</span>
+                    <p class="pre" th:if="${sel.preconditions != null}" th:text="${sel.preconditions}"></p>
+                    <p class="pre mono small" th:if="${sel.testData != null}" th:text="${sel.testData}"></p>
+                </div>
+                <ol class="lib-steps">
+                    <li th:each="st : ${sel.steps}">
+                        <span class="mono muted" th:text="${st.stepNo}"></span>
+                        <span><span th:text="${st.action}"></span>
+                            <small th:if="${st.expected != null}"><span class="muted">Expect · </span><span th:text="${st.expected}"></span></small></span>
+                    </li>
+                </ol>
+                <div class="row-actions">
+                    <a class="btn ghost small-btn" th:href="@{/scenarios/{id}/edit(id=${sel.id})}">Edit</a>
+                    <form method="post" th:action="@{/scenarios/{id}/archive(id=${sel.id})}" class="inline">
+                        <input type="hidden" name="active" th:value="${!sel.active}">
+                        <button class="linkish" th:classappend="${sel.active} ? 'danger'" type="submit" th:text="${sel.active} ? 'Archive' : 'Restore'"></button>
+                    </form>
+                </div>
+            </aside>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

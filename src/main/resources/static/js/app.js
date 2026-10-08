@@ -38,7 +38,8 @@
     // Jira push: select all + live count.
     var all = document.querySelector('[data-select-all]');
     if (all) {
-        var boxes = Array.prototype.slice.call(document.querySelectorAll('input[name="ids"]'));
+        var boxName = all.getAttribute('data-select-all') || 'ids';
+        var boxes = Array.prototype.slice.call(document.querySelectorAll('input[name="' + boxName + '"]'));
         var count = document.querySelector('[data-count]');
         var update = function () {
             var n = boxes.filter(function (b) { return b.checked; }).length;
@@ -52,6 +53,28 @@
         });
         boxes.forEach(function (b) { b.addEventListener('change', update); });
         update();
+    }
+
+    // Scenario editor: add and remove step rows.
+    var stepList = document.querySelector('[data-steps]');
+    var addStep = document.querySelector('[data-add-step]');
+    if (stepList && addStep) {
+        var wireRemove = function (li) {
+            var b = li.querySelector('[data-remove-step]');
+            if (b) b.addEventListener('click', function () {
+                if (stepList.children.length > 1) li.remove();
+                else li.querySelectorAll('textarea').forEach(function (t) { t.value = ''; });
+            });
+        };
+        Array.prototype.forEach.call(stepList.children, wireRemove);
+        addStep.addEventListener('click', function () {
+            var tpl = stepList.lastElementChild;
+            var li = tpl.cloneNode(true);
+            li.querySelectorAll('textarea').forEach(function (t) { t.value = ''; t.textContent = ''; });
+            stepList.appendChild(li);
+            wireRemove(li);
+            li.querySelector('textarea').focus();
+        });
     }
 
     // Business review: target release only for decisions that go to Jira.

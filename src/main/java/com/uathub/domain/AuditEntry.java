@@ -23,6 +23,7 @@ public class AuditEntry {
     @Column(length = 1000)
     private String detail;
 
+    @Column(name = "happened_at")
     private Instant at = Instant.now();
 
     public AuditEntry() {}

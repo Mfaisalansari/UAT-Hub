@@ -1,6 +1,7 @@
 # UAT Hub
 
-Log UAT feedback, get a business decision on each item, and push the approved ones to Jira.
+Give UAT users test scenarios to run, raise issues from failed steps, get a business decision on each
+issue, and push the approved ones to Jira.
 One Spring Boot JAR, an embedded H2 file database, no installed software and no passwords.
 
 ## Run it
@@ -62,7 +63,10 @@ rationale, labels `UAT-Feedback`, the cycle, LOB, division and the UAT ID, plus 
 
 | | Tester | QA lead | Business | Admin |
 |---|---|---|---|---|
-| Log feedback | ● | ● | | ● |
+| Run assigned scenarios, raise issues from steps | ● | ● | ● | ● |
+| Scenario library, test runs, assignment, new builds | | ● | | ● |
+| LOB sign-off | | | ● | ● |
+| Log general feedback | ● | ● | | ● |
 | Triage, edit, import Excel | | ● | | ● |
 | Record decision | | | ● | ● |
 | Push to Jira | | ● | | ● |
@@ -76,6 +80,48 @@ rationale, labels `UAT-Feedback`, the cycle, LOB, division and the UAT ID, plus 
 Treat links like passwords. For use beyond the internal network, put the app behind HTTPS
 (the cookie is then sent as Secure automatically).
 
+## Testing with scenarios
+
+1. **Scenario library** (QA lead): import the scenario sheet or write scenarios in the app. Each has an ID
+   (e.g. SC-014), title, LOB, division, module, priority, preconditions, test data and numbered steps with
+   expected results.
+2. **Test run** (QA lead): start a run, e.g. "UAT cycle 3" on build "4.2.1", then **Assign scenarios** to
+   testers and business users (per row, or tick several and assign in bulk).
+3. **My scenarios** (tester or business user): work through each scenario step by step, marking Pass, Fail,
+   Blocked or N/A, with the actual result and pasted screenshots.
+4. **Raise issue** on a failed or blocked step creates a feedback item pre-filled with the scenario, step,
+   expected and actual result, LOB, division, module, build and the step's evidence. It then follows the
+   normal flow: triage → business decision → Jira. You can also link an issue that is already logged.
+5. **Deploy new build** (QA lead): record the new build and tick the issues it fixes. Their scenarios go back
+   to the testers as **Re-test**. Finishing a re-test closes the issue as verified if the step now passes,
+   or reopens it if it fails again.
+6. **Sign-off** (business): sign off each LOB on the Test run page. Unfinished scenarios or open issues need
+   a note, and the open issues are recorded as accepted exceptions.
+
+**Export report** on the Test run page downloads every scenario's status, step counts and linked issues.
+
+### Scenario Excel import
+
+One row per step. Rows with the same Scenario ID become one scenario, and its first row supplies the
+scenario-level columns. Headers are matched by name, in any order:
+
+| Column | Also accepted |
+|---|---|
+| Scenario ID | ID, Test ID, TC ID |
+| Title | Scenario title, Scenario name, Summary |
+| LOB | Line of business |
+| Division | Region |
+| Module | Case type, Area, Feature |
+| Priority | Severity (High / Medium / Low, or P1–P4) |
+| Preconditions | Pre-requisites |
+| Test data | Data |
+| Step | Step no |
+| Action (required) | Test step, Step description |
+| Expected | Expected result |
+
+Importing a Scenario ID that already exists updates it. Steps that already have results can be reworded but
+not removed; archive the scenario and create a new one instead.
+
 ## Workflow
 
 ```
@@ -88,7 +134,8 @@ Logged → (Needs info ↺) → Business review → Decided → In Jira
 Everything lives in `./data` next to the JAR:
 
 - `data/uat-hub.mv.db`: the database
-- `data/attachments/<id>/`: screenshots and files
+- `data/attachments/<id>/`: screenshots and files on feedback items
+- `data/attachments/steps/<id>/`: evidence captured on scenario steps
 
 Back up by stopping the app and copying the `data` folder. Change the location with `--uathub.data-dir=...`.
 
@@ -108,10 +155,12 @@ LOBs and divisions are set in `application.properties` (`uathub.lobs`, `uathub.d
 ```
 src/main/java/com/uathub
 ├── config/     UatHubProperties
-├── domain/     Project, AppUser, Feedback, Attachment, AuditEntry, enums
+├── domain/     Project, AppUser, Feedback, Attachment, AuditEntry,
+│               Scenario, ScenarioStep, TestRun, Execution, StepResult, IssueLink, LobSignOff, enums
 ├── repo/       Spring Data repositories
 ├── security/   AccessCookieFilter (replaces login), SecurityConfig, CurrentUser
-├── service/    FeedbackService, JiraService, ExcelService, TeamService, AttachmentStorage, Bootstrap
+├── service/    FeedbackService, TestingService, ScenarioService, JiraService, ExcelService,
+│               TeamService, AttachmentStorage, Bootstrap
 └── web/        Controllers, GlobalModel (nav + errors), Fmt (template helpers)
 src/main/resources
 ├── templates/  Thymeleaf pages

@@ -31,13 +31,15 @@ public class FeedbackController {
     private final FeedbackService service;
     private final AttachmentStorage storage;
     private final AttachmentRepository attachments;
+    private final com.uathub.service.TestingService testing;
 
     public FeedbackController(ProjectContext ctx, FeedbackService service, AttachmentStorage storage,
-                              AttachmentRepository attachments) {
+                              AttachmentRepository attachments, com.uathub.service.TestingService testing) {
         this.ctx = ctx;
         this.service = service;
         this.storage = storage;
         this.attachments = attachments;
+        this.testing = testing;
     }
 
     @GetMapping("/feedback/new")
@@ -72,6 +74,7 @@ public class FeedbackController {
         model.addAttribute("files", storage.list(f));
         model.addAttribute("trail", service.trail(f));
         model.addAttribute("canEdit", service.canEdit(f, user));
+        model.addAttribute("testLinks", testing.links(f));
         model.addAttribute("types", FeedbackType.values());
         model.addAttribute("severities", Severity.values());
         return "detail";
@@ -111,7 +114,7 @@ public class FeedbackController {
     @GetMapping("/attachments/{id}")
     public ResponseEntity<Resource> attachment(@AuthenticationPrincipal CurrentUser me, @PathVariable Long id) {
         Attachment a = attachments.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!ctx.user(me).canAccess(a.getFeedback().getProject())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!ctx.user(me).canAccess(a.getProject())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         MediaType type;
         try {
             type = MediaType.parseMediaType(a.getContentType());

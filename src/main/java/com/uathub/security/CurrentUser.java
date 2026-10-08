@@ -18,6 +18,14 @@ public record CurrentUser(Long id, String name, Role role) implements Serializab
 
     public boolean canPush() { return canTriage(); }
 
+    /** Everyone can run scenarios assigned to them, including Business reviewers. */
+    public boolean canExecute() { return true; }
+
+    /** Scenario library, test runs, assignment and new builds. */
+    public boolean canManageTests() { return canTriage(); }
+
+    public boolean canSignOff() { return role == Role.BUSINESS || role == Role.ADMIN; }
+
     public String initials() { return Initials.of(name); }
 
     public String roleLabel() { return role.getLabel(); }

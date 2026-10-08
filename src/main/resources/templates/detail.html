@@ -32,6 +32,20 @@
                     <div class="panel"><h2 class="label">Actual</h2><p class="pre" th:text="${f.actual} ?: '—'"></p></div>
                 </div>
                 <figure th:replace="~{fragments :: thumbs(${files})}"></figure>
+                <div class="note test-note" th:if="${!testLinks.isEmpty() or f.foundInBuild != null}">
+                    <span class="label lime">Found while testing</span>
+                    <p th:each="l : ${testLinks}">
+                        <span class="mono lime" th:text="${l.execution.scenario.code}"></span>
+                        <span th:text="${l.execution.scenario.title}"></span>
+                        <span class="muted-2" th:if="${l.stepNo != null}" th:text="'· step ' + ${l.stepNo}"></span>
+                        <span class="muted-2" th:if="${l.execution.assignee != null}" th:text="'· ' + ${l.execution.assignee.name}"></span>
+                        <span class="xs" th:classappend="'x-' + ${l.execution.status.css}" th:text="${l.execution.status.label}"></span>
+                    </p>
+                    <p class="small muted-2">
+                        <span th:if="${f.foundInBuild != null}" th:text="'Found in ' + ${f.foundInBuild} + '. '"></span>
+                        <span th:if="${f.fixedInBuild != null}" th:text="'Marked fixed in ' + ${f.fixedInBuild} + ', waiting for re-test.'"></span>
+                    </p>
+                </div>
                 <div class="note" th:if="${f.qaNote != null}">
                     <span class="label lilac">QA note</span><p class="pre" th:text="${f.qaNote}"></p>
                 </div>

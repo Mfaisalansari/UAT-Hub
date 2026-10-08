@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${e.scenario.code})}"></head>
+<body>
+<div class="shell exec-shell">
+    <nav th:replace="~{fragments :: sidebar('my')}"></nav>
+
+    <section class="steps-col" aria-label="Steps">
+        <a class="crumb" th:href="@{/my}">← My scenarios</a>
+        <p class="mono small"><span class="lime" th:text="${e.scenario.code}"></span>
+            <span class="muted" th:text="' · ' + ${e.scenario.lobDivision} + ' · ' + ${e.scenario.priority.label}"></span></p>
+        <h1 class="title-3" th:text="${e.scenario.title}"></h1>
+        <div class="pre-box" th:if="${e.scenario.preconditions != null or e.scenario.testData != null}">
+            <span class="label">Before you start</span>
+            <p class="pre" th:if="${e.scenario.preconditions != null}" th:text="${e.scenario.preconditions}"></p>
+            <p class="pre mono small" th:if="${e.scenario.testData != null}" th:text="'Test data: ' + ${e.scenario.testData}"></p>
+        </div>
+        <div class="progress-row">
+            <span class="bar"><i th:style="'width:' + (${steps.isEmpty()} ? 0 : ${results.size() * 100 / steps.size()}) + '%'"></i></span>
+            <span class="mono small muted" th:text="${results.size()} + '/' + ${steps.size()}"></span>
+        </div>
+        <p class="small lilac" th:if="${e.retest}" th:text="'Re-test ' + (${e.attempt} - 1) + (${e.retestBuild} != null ? ' on ' + ${e.retestBuild} : '')"></p>
+        <ol class="step-list">
+            <li th:each="st : ${steps}" th:with="r=${results.get(st.id)}">
+                <a th:href="@{/exec/{id}(id=${e.id}, step=${st.stepNo})}" th:classappend="${cur != null and st.id == cur.id} ? 'on'">
+                    <span class="sb" th:classappend="${r == null} ? '' : 'r-' + ${r.result.css}"
+                          th:text="${r == null} ? ${st.stepNo} : (${r.result.name() == 'PASS'} ? '✓' : (${r.result.name() == 'FAIL'} ? '×' : (${r.result.name() == 'BLOCKED'} ? '!' : '–')))"></span>
+                    <span class="st-text"><span th:text="${st.action}"></span>
+                        <small th:text="${r == null} ? 'Not run' : ${r.result.label}" th:classappend="${r == null} ? '' : 'c-' + ${r.result.css}"></small></span>
+                </a>
+            </li>
+        </ol>
+    </section>
+
+    <main class="main exec-main">
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <th:block th:if="${cur != null}">
+            <p class="mono small"><span class="lime" th:text="'Step ' + ${cur.stepNo} + ' of ' + ${steps.size()}"></span>
+                <span class="muted push-right" th:text="'Run: ' + ${e.run.label}"></span></p>
+            <h2 class="title-2" th:text="${cur.action}"></h2>
+            <div class="panel">
+                <span class="label">Expected result</span>
+                <p class="pre big-text" th:text="${cur.expected} ?: 'Not specified'"></p>
+            </div>
+
+            <form th:if="${canRecord}" method="post" enctype="multipart/form-data" class="stack"
+                  th:action="@{/exec/{id}/step/{s}(id=${e.id}, s=${cur.id}, _csrf=${_csrf.token})}">
+                <fieldset class="results-pick">
+                    <legend class="sr">Result for this step</legend>
+                    <label th:each="st : ${statuses}" th:classappend="'r-' + ${st.css}">
+                        <input type="radio" name="result" th:value="${st.name()}" required
+                               th:checked="${curResult != null and curResult.result == st}">
+                        <span th:text="${st.label}"></span>
+                    </label>
+                </fieldset>
+                <div class="grid-evidence">
+                    <div class="field">
+                        <label for="actual">What actually happened <small class="muted">(required for Fail or Blocked)</small></label>
+                        <textarea id="actual" name="actual" rows="4" th:text="${curResult != null} ? ${curResult.actual} : ''"></textarea>
+                    </div>
+                    <div class="drop card-dashed small-drop" data-dropzone>
+                        <label class="drop-target" for="files"><span class="mono lime">Ctrl + V</span><span>paste or drop evidence</span></label>
+                        <input id="files" type="file" name="files" multiple hidden accept="image/*,.pdf,.xlsx,.xls,.docx,.txt,.csv">
+                        <div class="thumbs" data-previews></div>
+                    </div>
+                </div>
+                <figure th:replace="~{fragments :: thumbs(${evidence})}"></figure>
+                <div class="form-foot">
+                    <span class="muted small">Pass moves to the next step. Fail or Blocked stays here so you can raise an issue.</span>
+                    <button class="btn primary" type="submit">Save result</button>
+                </div>
+            </form>
+            <div th:unless="${canRecord}" class="note">
+                <p th:text="${curResult != null} ? 'Result: ' + ${curResult.result.label} + (${curResult.actual} != null ? '. ' + ${curResult.actual} : '') : 'Not run yet.'"></p>
+                <p class="small muted-2">Only the assigned person can record results for this scenario.</p>
+            </div>
+
+            <section class="raise" th:if="${curResult != null and (curResult.result.name() == 'FAIL' or curResult.result.name() == 'BLOCKED')}">
+                <h3 class="h3"><i class="coral-dot"></i>Issues for this step</h3>
+                <p th:each="l : ${curLinks}" class="linked">
+                    <a class="mono" th:href="@{/feedback/{id}(id=${l.feedback.id})}" th:text="${l.feedback.code}"></a>
+                    <span th:text="${l.feedback.title}"></span>
+                    <span class="muted small" th:text="'· ' + ${l.feedback.stage.label}"></span>
+                </p>
+                <th:block th:if="${canRecord}">
+                    <form method="post" class="raise-form" th:action="@{/exec/{id}/step/{s}/raise(id=${e.id}, s=${cur.id})}">
+                        <div class="field grow">
+                            <label for="r-title">Title (edit if needed)</label>
+                            <input id="r-title" name="title" maxlength="300"
+                                   th:value="${curResult.actual != null and curResult.actual.length() < 120} ? ${curResult.actual} : ${e.scenario.title} + ': step ' + ${cur.stepNo} + ' failed'">
+                        </div>
+                        <div class="field">
+                            <label for="r-sev">Severity</label>
+                            <select id="r-sev" name="severity">
+                                <option th:each="v : ${severities}" th:value="${v.name()}" th:text="${v.label}"
+                                        th:selected="${v.name() == (e.scenario.priority.name() == 'HIGH' ? 'HIGH' : 'MEDIUM')}"></option>
+                            </select>
+                        </div>
+                        <button class="btn coral-btn" type="submit" th:text="${curLinks.isEmpty()} ? 'Raise issue' : 'Raise another issue'"></button>
+                    </form>
+                    <p class="small coral-soft">Carries over the scenario, step, expected and actual result, LOB, division, build and your evidence.</p>
+                    <form method="post" class="link-form" th:action="@{/exec/{id}/step/{s}/link(id=${e.id}, s=${cur.id})}">
+                        <span class="small muted-2">Already logged?</span>
+                        <button th:each="f : ${similar}" class="chip-btn" type="submit" name="code" th:value="${f.code}"
+                                th:title="${f.title}" th:text="'Link ' + ${f.code}"></button>
+                        <label class="sr" for="l-code">Item ID</label>
+                        <input id="l-code" name="code" class="mono" placeholder="UAT-0042">
+                        <button class="btn ghost small-btn" type="submit">Link</button>
+                    </form>
+                </th:block>
+            </section>
+
+            <div class="exec-foot">
+                <a class="btn ghost" th:if="${cur.stepNo > 1}" th:href="@{/exec/{id}(id=${e.id}, step=${cur.stepNo - 1})}">← Previous</a>
+                <a class="btn ghost" th:if="${cur.stepNo < steps.size()}" th:href="@{/exec/{id}(id=${e.id}, step=${cur.stepNo + 1})}">Next step →</a>
+                <form th:if="${canRecord}" method="post" th:action="@{/exec/{id}/finish(id=${e.id})}" class="push-right">
+                    <button class="btn primary" type="submit">Finish scenario</button>
+                </form>
+            </div>
+        </th:block>
+        <div class="empty" th:if="${cur == null}"><h2>This scenario has no steps</h2><p>Ask QA to add steps in the scenario library.</p></div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

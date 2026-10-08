@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Assign scenarios')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('runs')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb"><a th:href="@{/runs(id=${run.id})}">← Test run</a><span th:text="${run.label}"></span></p>
+                <h1 class="title">Assign scenarios</h1>
+            </div>
+            <form method="get" class="actions" th:action="@{/runs/{id}/assign(id=${run.id})}">
+                <label class="sr" for="a-lob">Line of business</label>
+                <select id="a-lob" name="lob" data-autosubmit>
+                    <option value="">All LOBs</option>
+                    <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}" th:selected="${l == fLob}"></option>
+                </select>
+            </form>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="empty" th:if="${rows.isEmpty()}">
+            <h2>No scenarios to assign</h2>
+            <p>Add or import scenarios in the <a th:href="@{/scenarios}">scenario library</a> first.</p>
+        </div>
+
+        <form method="post" th:action="@{/runs/{id}/assign(id=${run.id})}" class="stack" th:unless="${rows.isEmpty()}">
+            <input type="hidden" name="lob" th:value="${fLob}">
+            <div class="bulk-bar">
+                <span class="small muted-2">Assign the ticked scenarios to</span>
+                <label class="sr" for="bulk">Person</label>
+                <select id="bulk" name="bulkUser">
+                    <option value="">Choose a person</option>
+                    <option th:each="p : ${people}" th:value="${p.id}" th:text="${p.name} + ' (' + ${p.role.label} + ')'"></option>
+                    <option value="none">Remove from this run</option>
+                </select>
+                <button class="btn ghost small-btn" type="submit" name="applyBulk" value="1">Apply to ticked</button>
+                <button class="btn primary push-right" type="submit">Save assignments</button>
+            </div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr>
+                        <th class="check"><input type="checkbox" data-select-all="sel" aria-label="Tick all"></th>
+                        <th>ID</th><th>Scenario</th><th>LOB / division</th><th>Steps</th><th>Status</th><th>Assigned to</th>
+                    </tr></thead>
+                    <tbody>
+                    <tr th:each="s : ${rows}" th:with="x=${current.get(s.id)}">
+                        <td class="check"><input type="checkbox" name="sel" th:value="${s.id}" th:attr="aria-label='Tick ' + ${s.code}"></td>
+                        <td class="mono id" th:text="${s.code}"></td>
+                        <td class="title-cell"><span th:text="${s.title}"></span><small th:text="${s.module}"></small></td>
+                        <td class="muted-2" th:text="${s.lobDivision}"></td>
+                        <td class="mono" th:text="${s.steps.size()}"></td>
+                        <td><th:block th:if="${x != null}"><span th:replace="~{fragments :: exec(${x})}"></span></th:block><span th:if="${x == null}" class="muted small">Not in run</span></td>
+                        <td>
+                            <label class="sr" th:for="'a_' + ${s.id}" th:text="'Assignee for ' + ${s.code}"></label>
+                            <select th:id="'a_' + ${s.id}" th:name="'a_' + ${s.id}" class="mini-select">
+                                <option value="">— not in run</option>
+                                <option th:each="p : ${people}" th:value="${p.id}" th:text="${p.name}"
+                                        th:selected="${x != null and x.assignee != null and x.assignee.id == p.id}"></option>
+                            </select>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small muted-2">Removing a scenario someone has started keeps its results and issues; it just becomes unassigned.</p>
+        </form>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

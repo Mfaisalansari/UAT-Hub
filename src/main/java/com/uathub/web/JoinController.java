@@ -104,7 +104,7 @@ public class JoinController {
     static String home(Role role) {
         return switch (role) {
             case BUSINESS -> "/review";
-            case TESTER -> "/feedback/new";
+            case TESTER -> "/my";
             default -> "/";
         };
     }

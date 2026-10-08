@@ -11,8 +11,13 @@ public class Attachment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    /** Set for attachments on a feedback item. */
+    @ManyToOne
     private Feedback feedback;
+
+    /** Set for evidence captured on a scenario step. */
+    @ManyToOne
+    private StepResult stepResult;
 
     private String fileName;
     private String contentType;
@@ -24,6 +29,13 @@ public class Attachment {
     public Long getId() { return id; }
     public Feedback getFeedback() { return feedback; }
     public void setFeedback(Feedback feedback) { this.feedback = feedback; }
+    public StepResult getStepResult() { return stepResult; }
+    public void setStepResult(StepResult stepResult) { this.stepResult = stepResult; }
+
+    public Project getProject() {
+        if (feedback != null) return feedback.getProject();
+        return stepResult == null ? null : stepResult.getExecution().getRun().getProject();
+    }
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
     public String getContentType() { return contentType; }

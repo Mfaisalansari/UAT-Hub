@@ -16,7 +16,7 @@
 <nav th:fragment="sidebar(active)" class="side" aria-label="Main">
     <a class="brand" th:href="@{/}">
         <span class="mark" aria-hidden="true">U/</span>
-        <span><b>UAT Hub</b><small>log → decide → jira</small></span>
+        <span><b>UAT Hub</b><small>test → raise → decide</small></span>
     </a>
 
     <form th:if="${project != null}" class="proj" method="post" th:action="@{/project/select}">
@@ -29,6 +29,11 @@
     </form>
 
     <div class="nav">
+        <div class="nav-group first">Testing</div>
+        <a th:href="@{/my}" th:classappend="${active == 'my'} ? 'on'"><i></i>My scenarios</a>
+        <a th:href="@{/runs}" th:classappend="${active == 'runs'} ? 'on'"><i></i>Test run</a>
+        <a th:if="${me.canManageTests()}" th:href="@{/scenarios}" th:classappend="${active == 'scenarios'} ? 'on'"><i></i>Scenario library</a>
+        <div class="nav-group">Feedback</div>
         <a th:href="@{/}" th:classappend="${active == 'register'} ? 'on'">
             <i></i>Register<span class="n" th:text="${navTotal}"></span></a>
         <a th:if="${me.canLog()}" th:href="@{/feedback/new}" th:classappend="${active == 'log'} ? 'on'">
@@ -65,6 +70,8 @@
 </span>
 
 <span th:fragment="type(f)" class="tag" th:classappend="'t-' + ${f.type.css}" th:text="${f.type.label}"></span>
+
+<span th:fragment="exec(x)" class="xs" th:classappend="'x-' + ${x.status.css}" th:text="${x.status.label}"></span>
 
 <span th:fragment="sev(f)" class="sev" th:classappend="'v-' + ${f.severity.css}" th:text="${f.severity.label}"></span>
 

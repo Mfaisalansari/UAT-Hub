@@ -57,6 +57,11 @@ public class Feedback {
     private String jiraUrl;
     private Long duplicateOf;
 
+    /** Build under test when the issue was found while running a scenario. */
+    private String foundInBuild;
+    /** Set when QA deploys a build that fixes it; linked scenarios then go back for re-test. */
+    private String fixedInBuild;
+
     private Instant createdAt = Instant.now();
     private Instant updatedAt = Instant.now();
 
@@ -132,6 +137,10 @@ public class Feedback {
     public void setJiraUrl(String jiraUrl) { this.jiraUrl = jiraUrl; }
     public Long getDuplicateOf() { return duplicateOf; }
     public void setDuplicateOf(Long duplicateOf) { this.duplicateOf = duplicateOf; }
+    public String getFoundInBuild() { return foundInBuild; }
+    public void setFoundInBuild(String foundInBuild) { this.foundInBuild = foundInBuild; }
+    public String getFixedInBuild() { return fixedInBuild; }
+    public void setFixedInBuild(String fixedInBuild) { this.fixedInBuild = fixedInBuild; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Test run')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('runs')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <form method="get" th:action="@{/runs}" class="crumb" th:if="${allRuns.size() > 1}">
+                    <label class="sr" for="run-pick">Test run</label>
+                    <select id="run-pick" name="id" data-autosubmit class="mini-select">
+                        <option th:each="r : ${allRuns}" th:value="${r.id}" th:selected="${run != null and r.id == run.id}"
+                                th:text="${r.label} + (${r.active} ? ' (current)' : '')"></option>
+                    </select>
+                </form>
+                <p class="crumb" th:if="${run != null and allRuns.size() <= 1}" th:text="'Started ' + ${@fmt.when(run.createdAt)}"></p>
+                <h1 class="title" th:if="${run != null}"><span th:text="${run.name}"></span>
+                    <span class="muted-title" th:if="${run.build != null}" th:text="'· ' + ${run.build}"></span></h1>
+                <h1 class="title" th:if="${run == null}">Test run</h1>
+            </div>
+            <div class="actions" th:if="${run != null and me.canManageTests()}">
+                <a class="btn ghost" th:href="@{/runs/{id}/assign(id=${run.id})}">Assign scenarios</a>
+                <a class="btn ghost" th:href="@{/runs/{id}/export(id=${run.id})}">Export report</a>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="empty" th:if="${run == null}">
+            <h2>No test run yet</h2>
+            <p th:unless="${me.canManageTests()}">QA starts a run when a build is ready for UAT.</p>
+            <form th:if="${me.canManageTests()}" method="post" th:action="@{/runs}" class="inline-form">
+                <div class="field"><label for="n1">Run name</label><input id="n1" name="name" required th:value="${project.currentCycle}" placeholder="UAT cycle 1"></div>
+                <div class="field"><label for="b1">Build / version</label><input id="b1" name="build" placeholder="e.g. 4.2.1"></div>
+                <button class="btn primary" type="submit">Start run</button>
+            </form>
+        </div>
+
+        <th:block th:if="${run != null}">
+            <section class="overall">
+                <div class="seg-bar" th:if="${totals.total() > 0}">
+                    <i class="s-pass" th:style="'flex-grow:' + ${totals.passed()}"></i>
+                    <i class="s-fail" th:style="'flex-grow:' + ${totals.failed()}"></i>
+                    <i class="s-blocked" th:style="'flex-grow:' + ${totals.blocked()}"></i>
+                    <i class="s-retest" th:style="'flex-grow:' + ${totals.retest()}"></i>
+                    <i class="s-none" th:style="'flex-grow:' + ${totals.notRun()}"></i>
+                </div>
+                <p class="legend">
+                    <span><i class="s-pass"></i>Passed <b th:text="${totals.passed()}"></b></span>
+                    <span><i class="s-fail"></i>Failed <b th:text="${totals.failed()}"></b></span>
+                    <span><i class="s-blocked"></i>Blocked <b th:text="${totals.blocked()}"></b></span>
+                    <span><i class="s-retest"></i>Re-test <b th:text="${totals.retest()}"></b></span>
+                    <span><i class="s-none"></i>Not run <b th:text="${totals.notRun()}"></b></span>
+                    <span class="push-right mono" th:text="${totals.percentDone()} + '% done of ' + ${totals.total()}"></span>
+                </p>
+            </section>
+
+            <div class="empty" th:if="${totals.total() == 0}">
+                <h2>No scenarios in this run yet</h2>
+                <p th:if="${me.canManageTests()}"><a th:href="@{/runs/{id}/assign(id=${run.id})}">Assign scenarios</a> to testers and business users.</p>
+            </div>
+
+            <div class="split runs-split" th:if="${totals.total() > 0}">
+                <section class="stack">
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Line of business</th><th>Progress</th><th>Pass</th><th>Fail</th><th>Blocked</th><th>Open</th><th>Issues</th><th>Business sign-off</th></tr></thead>
+                            <tbody>
+                            <tr th:each="l : ${lobRows}" th:with="t=${l.totals()}">
+                                <td><b th:text="${l.lob()}"></b></td>
+                                <td class="w-bar"><span class="seg-bar thin">
+                                    <i class="s-pass" th:style="'flex-grow:' + ${t.passed()}"></i>
+                                    <i class="s-fail" th:style="'flex-grow:' + ${t.failed()}"></i>
+                                    <i class="s-blocked" th:style="'flex-grow:' + ${t.blocked()}"></i>
+                                    <i class="s-retest" th:style="'flex-grow:' + ${t.retest()}"></i>
+                                    <i class="s-none" th:style="'flex-grow:' + ${t.notRun()}"></i></span></td>
+                                <td class="mono c-pass" th:text="${t.passed()}"></td>
+                                <td class="mono c-fail" th:text="${t.failed()}"></td>
+                                <td class="mono c-blocked" th:text="${t.blocked()}"></td>
+                                <td class="mono muted" th:text="${t.notRun() + t.retest()}"></td>
+                                <td class="mono" th:classappend="${l.openIssues() > 0} ? 'c-fail' : 'muted'" th:text="${l.openIssues()}"></td>
+                                <td>
+                                    <span th:if="${l.signOff() != null}" class="signed" th:title="${l.signOff().note}"
+                                          th:text="'Signed off · ' + ${l.signOff().signedBy != null ? l.signOff().signedBy.name : ''}"></span>
+                                    <details th:if="${l.signOff() == null and me.canSignOff() and run.active}" class="signoff">
+                                        <summary class="linkish">Sign off</summary>
+                                        <form method="post" th:action="@{/runs/{id}/signoff(id=${run.id})}" class="stack-sm">
+                                            <input type="hidden" name="lob" th:value="${l.lob()}">
+                                            <label class="sr" th:for="'note-' + ${lStat.index}">Note</label>
+                                            <textarea th:id="'note-' + ${lStat.index}" name="note" rows="2"
+                                                      th:placeholder="${l.openIssues() > 0 or t.notRun() + t.retest() > 0} ? 'Required: why sign off with open items' : 'Optional note'"></textarea>
+                                            <button class="btn primary small-btn" type="submit">Confirm sign-off</button>
+                                        </form>
+                                    </details>
+                                    <span th:if="${l.signOff() == null and !(me.canSignOff() and run.active)}" class="muted">—</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-wrap" th:unless="${testers.isEmpty()}">
+                        <table class="table">
+                            <thead><tr><th>Person</th><th>Done</th><th>Progress</th></tr></thead>
+                            <tbody>
+                            <tr th:each="p : ${testers}">
+                                <td><div class="person"><span class="avatar" th:classappend="'r-' + ${p.person().role.name().toLowerCase()}" th:text="${p.person().initials}"></span>
+                                    <span><b th:text="${p.person().name}"></b><small th:text="${p.person().role.label}"></small></span></div></td>
+                                <td class="mono" th:text="${p.done()} + ' / ' + ${p.total()}"></td>
+                                <td class="w-bar"><span class="bar"><i th:style="'width:' + ${p.total() == 0 ? 0 : p.done() * 100 / p.total()} + '%'"></i></span></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <aside class="side-stack">
+                    <h2 class="h2">Issues from testing</h2>
+                    <p class="small muted-2" th:if="${issues.isEmpty()}">None raised yet. Issues raised from failed steps appear here.</p>
+                    <a th:each="i : ${issues}" class="issue-card" th:href="@{/feedback/{id}(id=${i.feedback().id})}"
+                       th:classappend="${i.feedback().stage.name() == 'CLOSED'} ? 'done'">
+                        <span class="mono small"><span class="lime" th:text="${i.feedback().code}"></span>
+                            <span th:if="${i.feedback().fixedInBuild != null and i.feedback().stage.name() != 'CLOSED'}" class="cyan" th:text="'Fixed in ' + ${i.feedback().fixedInBuild} + ' · re-test'"></span>
+                            <span th:unless="${i.feedback().fixedInBuild != null and i.feedback().stage.name() != 'CLOSED'}" class="muted" th:text="${i.feedback().stage.label}"></span></span>
+                        <span th:text="${i.feedback().title}"></span>
+                        <small class="muted" th:text="${i.impact()}"></small>
+                    </a>
+
+                    <form th:if="${me.canManageTests() and run.active}" method="post" th:action="@{/runs/{id}/build(id=${run.id})}" class="card stack-sm">
+                        <h3 class="h3">Deploy new build</h3>
+                        <div class="field"><label for="nb">Build / version now in UAT</label>
+                            <input id="nb" name="build" required placeholder="e.g. 4.2.3"></div>
+                        <fieldset class="field" th:unless="${fixCandidates.isEmpty()}">
+                            <legend>Issues this build fixes</legend>
+                            <div class="checks column">
+                                <label th:each="f : ${fixCandidates}"><input type="checkbox" name="fixed" th:value="${f.id}">
+                                    <span><span class="mono lime" th:text="${f.code}"></span> <span th:text="${f.title}"></span></span></label>
+                            </div>
+                        </fieldset>
+                        <p class="small muted-2">Scenarios linked to the ticked issues go back to their testers as re-tests.</p>
+                        <button class="btn primary" type="submit">Record build</button>
+                    </form>
+
+                    <details class="card" th:if="${me.canManageTests()}">
+                        <summary class="h3">Start a new run</summary>
+                        <form method="post" th:action="@{/runs}" class="stack-sm">
+                            <div class="field"><label for="n2">Run name</label><input id="n2" name="name" required placeholder="UAT cycle 4"></div>
+                            <div class="field"><label for="b2">Build / version</label><input id="b2" name="build"></div>
+                            <p class="small muted-2">The current run is closed and kept for reference.</p>
+                            <button class="btn ghost" type="submit">Start run</button>
+                        </form>
+                    </details>
+                </aside>
+            </div>
+        </th:block>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

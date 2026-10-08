@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('My scenarios')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('my')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb" th:text="${run != null} ? ${run.label} + ' · assigned to you' : ${project.name}"></p>
+                <h1 class="title">My scenarios</h1>
+            </div>
+            <div class="stats" th:if="${run != null}">
+                <span><b th:text="${totals.total()}"></b><small>assigned</small></span>
+                <span class="c-pass"><b th:text="${totals.passed()}"></b><small>passed</small></span>
+                <span class="c-fail"><b th:text="${totals.failed()}"></b><small>failed</small></span>
+                <span class="c-blocked"><b th:text="${totals.blocked()}"></b><small>blocked</small></span>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="empty" th:if="${run == null}">
+            <h2>No test run has started yet</h2>
+            <p>When QA starts a run and assigns scenarios to you, they appear here.</p>
+        </div>
+
+        <th:block th:if="${run != null}">
+            <section class="retest-banner" th:each="x : ${queue}" th:if="${x.status.name() == 'RETEST'}">
+                <span class="xs x-retest">Re-test</span>
+                <span class="rb-text">
+                    <b><span class="mono lime" th:text="${x.scenario.code}"></span> <span th:text="${x.scenario.title}"></span></b>
+                    <small>
+                        <span th:each="l, s : ${links.get(x.id)}" th:if="${l.feedback.fixedInBuild != null}"
+                              th:text="${l.feedback.code} + ' marked fixed in ' + ${l.feedback.fixedInBuild} + (${s.last} ? '. ' : ', ')"></span>
+                        Re-run it to verify the fix, or the issue will be reopened if it still fails.
+                    </small>
+                </span>
+                <a class="btn lilac-btn" th:href="@{/exec/{id}(id=${x.id})}">Re-test now</a>
+            </section>
+
+            <div class="table-wrap" th:unless="${queue.isEmpty()}">
+                <table class="table">
+                    <thead><tr><th>ID</th><th>Scenario</th><th>LOB / division</th><th>Priority</th><th>Steps</th><th>Issues</th><th></th></tr></thead>
+                    <tbody>
+                    <tr th:each="x : ${queue}">
+                        <td class="mono id"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.code}"></a></td>
+                        <td class="title-cell"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.title}"></a>
+                            <small th:text="${x.scenario.module}"></small></td>
+                        <td class="muted-2" th:text="${x.scenario.lobDivision}"></td>
+                        <td><span class="pri" th:classappend="'p-' + ${x.scenario.priority.css}" th:text="${x.scenario.priority.label}"></span></td>
+                        <td>
+                            <span class="cells">
+                                <i th:each="st : ${x.scenario.steps}" th:with="r=${results.get(x.id).get(st.id)}"
+                                   th:class="${r == null} ? 'c-none' : 'c-' + ${r.result.css}"
+                                   th:title="'Step ' + ${st.stepNo} + ': ' + (${r == null} ? 'not run' : ${r.result.label})"></i>
+                            </span>
+                            <span th:replace="~{fragments :: exec(${x})}"></span>
+                        </td>
+                        <td class="mono small">
+                            <a th:each="l : ${links.get(x.id)}" class="issue-key" th:href="@{/feedback/{id}(id=${l.feedback.id})}" th:text="${l.feedback.code}"></a>
+                            <span class="muted" th:if="${links.get(x.id).isEmpty()}">—</span>
+                        </td>
+                        <td>
+                            <a class="btn small-btn" th:href="@{/exec/{id}(id=${x.id})}"
+                               th:classappend="${x.status.name() == 'NOT_STARTED'} ? 'primary' : (${x.status.done} ? '' : 'outline-lime')"
+                               th:text="${x.status.name() == 'NOT_STARTED'} ? 'Start' : (${x.status.done} ? 'View' : 'Continue')"></a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty" th:if="${queue.isEmpty()}">
+                <h2>Nothing assigned to you in this run</h2>
+                <p>Ask your QA lead to assign you scenarios. You can still <a th:href="@{/feedback/new}" th:if="${me.canLog()}">log general feedback</a>.</p>
+            </div>
+        </th:block>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

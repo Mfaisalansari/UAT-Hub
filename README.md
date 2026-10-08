@@ -156,6 +156,12 @@ Logged → (Needs info ↺) → Business review → Decided → In Jira
                                            ↘ Closed (comment / works as designed / duplicate)
 ```
 
+## Themes
+
+Everyone can pick **Dark**, **Light** or **Auto** (follows the computer's setting) at the bottom of the sidebar.
+The choice is saved in that browser. All colours are tokens at the top of `static/css/app.css`: the dark set
+under `:root`, the light set under `html[data-theme="light"]`, so a new theme is one more block of tokens.
+
 ## Data and backup
 
 Everything lives in `./data` next to the JAR:

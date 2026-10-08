@@ -2,6 +2,30 @@
 (function () {
     'use strict';
 
+    // Theme: dark, light or auto (follows the computer). Saved per browser.
+    var root = document.documentElement;
+    var media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    var applyTheme = function (pref) {
+        var light = pref === 'light' || (pref === 'auto' && media && media.matches);
+        root.setAttribute('data-theme', light ? 'light' : 'dark');
+        root.setAttribute('data-theme-pref', pref);
+        document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+            b.setAttribute('aria-pressed', b.getAttribute('data-theme-set') === pref ? 'true' : 'false');
+        });
+    };
+    applyTheme(root.getAttribute('data-theme-pref') || 'dark');
+    document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var pref = b.getAttribute('data-theme-set');
+            try { localStorage.setItem('uathub-theme', pref); } catch (e) {}
+            applyTheme(pref);
+        });
+    });
+    if (media) {
+        var follow = function () { if (root.getAttribute('data-theme-pref') === 'auto') applyTheme('auto'); };
+        if (media.addEventListener) media.addEventListener('change', follow); else if (media.addListener) media.addListener(follow);
+    }
+
     // Selects and file inputs that submit their form on change.
     document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
         el.addEventListener('change', function () { el.form && el.form.submit(); });

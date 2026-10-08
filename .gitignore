@@ -6,3 +6,4 @@ data/
 .vscode/
 run.local.*
 .DS_Store
+*.patch

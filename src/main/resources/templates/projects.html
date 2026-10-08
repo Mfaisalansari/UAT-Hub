@@ -7,7 +7,7 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb">Each project has its own register, UAT cycle and Jira mapping.</p>
+                <p class="crumb">Each project has its own UAT cycles, scenarios and Jira mapping.</p>
                 <h1 class="title">Projects &amp; Jira</h1>
             </div>
         </header>
@@ -17,8 +17,8 @@
         <form class="add-person projects-add" method="post" th:action="@{/projects}">
             <div class="field"><label for="n-name">New project</label>
                 <input id="n-name" name="name" required placeholder="e.g. Pega Underwriting"></div>
-            <div class="field"><label for="n-cycle">Current UAT cycle</label>
-                <input id="n-cycle" name="currentCycle" placeholder="e.g. UAT cycle 3"></div>
+            <div class="field"><label for="n-cycle">First UAT cycle</label>
+                <input id="n-cycle" name="currentCycle" placeholder="e.g. October 2026 release"></div>
             <button class="btn primary" type="submit">Create project</button>
         </form>
 
@@ -27,8 +27,8 @@
                 <div class="grid2">
                     <div class="field"><label th:for="'name-' + ${p.id}">Project name</label>
                         <input th:id="'name-' + ${p.id}" name="name" required th:value="${p.name}"></div>
-                    <div class="field"><label th:for="'cyc-' + ${p.id}">Current UAT cycle</label>
-                        <input th:id="'cyc-' + ${p.id}" name="currentCycle" th:value="${p.currentCycle}"></div>
+                    <div class="field"><span class="label">UAT cycles</span>
+                        <p class="small muted-2">Each release's UAT window is its own cycle. <a th:href="@{/cycles}">Manage UAT cycles</a> (for the project selected in the sidebar).</p></div>
                 </div>
                 <h3 class="label">Jira mapping</h3>
                 <div class="grid3">

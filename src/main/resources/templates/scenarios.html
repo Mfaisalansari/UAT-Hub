@@ -17,6 +17,7 @@
                         <input type="file" name="file" accept=".xlsx,.xls" data-autosubmit hidden>
                     </label>
                 </form>
+                <a class="btn ghost" th:href="@{/scenarios/template}">Download template</a>
                 <a class="btn primary" th:href="@{/scenarios/new}">+ New scenario</a>
             </div>
         </header>
@@ -56,9 +57,9 @@
                 </div>
                 <div class="empty" th:if="${rows.isEmpty()}">
                     <h2 th:text="${archived} ? 'No archived scenarios' : 'No scenarios yet'"></h2>
-                    <p th:unless="${archived}">Import your scenario sheet with <b>Import Excel</b>: one row per step with columns
-                        Scenario ID, Title, LOB, Division, Module, Priority, Preconditions, Test data, Step, Action, Expected.
-                        Rows with the same Scenario ID become one scenario.</p>
+                    <p th:unless="${archived}">Start from the <a th:href="@{/scenarios/template}">sample Excel template</a>:
+                        one row per step, and rows with the same Scenario ID become one scenario. Its <b>How to fill</b> tab explains
+                        each column. Then use <b>Import Excel</b>, or add scenarios one at a time with <b>+ New scenario</b>.</p>
                 </div>
             </section>
 

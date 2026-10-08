@@ -19,7 +19,7 @@ public class ExcelService {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    private static final String[] HEADERS = {"ID", "Title", "LOB", "Division", "Case type / stage", "Screen", "Type",
+    private static final String[] HEADERS = {"ID", "UAT cycle", "Title", "LOB", "Division", "Case type / stage", "Screen", "Type",
             "Severity", "Stage", "Decision", "Rationale", "Target release", "Jira", "Raised by", "Decided by",
             "Created", "Description", "Expected", "Actual", "QA note"};
 
@@ -50,7 +50,8 @@ public class ExcelService {
         this.feedbackService = feedbackService;
     }
 
-    public byte[] export(Project project) throws IOException {
+    /** All feedback of the project, or only one UAT cycle's when cycle is not null. */
+    public byte[] export(Project project, UatCycle cycle) throws IOException {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("UAT feedback");
             CellStyle head = wb.createCellStyle();
@@ -64,9 +65,11 @@ public class ExcelService {
                 c.setCellStyle(head);
             }
             int r = 1;
-            for (Feedback f : repo.findByProjectOrderByIdDesc(project)) {
+            List<Feedback> items = cycle == null ? repo.findByProjectOrderByIdDesc(project)
+                    : repo.findByProjectAndUatCycleOrderByIdDesc(project, cycle);
+            for (Feedback f : items) {
                 Row row = sheet.createRow(r++);
-                String[] v = {f.getCode(), f.getTitle(), f.getLob(), f.getDivision(), f.getModule(), f.getScreen(),
+                String[] v = {f.getCode(), f.getCycle(), f.getTitle(), f.getLob(), f.getDivision(), f.getModule(), f.getScreen(),
                         f.getType().getLabel(), f.getSeverity().getLabel(), f.getStage().getLabel(),
                         f.getDecision() == null ? null : f.getDecision().getLabel(), f.getDecisionRationale(),
                         f.getTargetRelease(), f.getJiraKey(),
@@ -76,14 +79,14 @@ public class ExcelService {
                 for (int i = 0; i < v.length; i++) row.createCell(i).setCellValue(v[i] == null ? "" : v[i]);
             }
             sheet.createFreezePane(0, 1);
-            for (int i = 0; i < 9; i++) sheet.autoSizeColumn(i);
+            for (int i = 0; i < 10; i++) sheet.autoSizeColumn(i);
             wb.write(out);
             return out.toByteArray();
         }
     }
 
     /** Reads the first sheet. Columns are matched by header name, so the column order doesn't matter. */
-    public int importSheet(Project project, AppUser by, InputStream in) throws IOException {
+    public int importSheet(Project project, UatCycle cycle, AppUser by, InputStream in) throws IOException {
         try (Workbook wb = WorkbookFactory.create(in)) {
             Sheet sheet = wb.getSheetAt(0);
             DataFormatter fmt = new DataFormatter();
@@ -114,7 +117,7 @@ public class ExcelService {
                 f.setSeverity(Severity.parse(get(row, cols, "severity", fmt), Severity.MEDIUM));
                 f.setExpected(cut(get(row, cols, "expected", fmt), 2000));
                 f.setActual(cut(get(row, cols, "actual", fmt), 2000));
-                feedbackService.importRow(project, by, f);
+                feedbackService.importRow(project, cycle, by, f);
                 count++;
             }
             return count;

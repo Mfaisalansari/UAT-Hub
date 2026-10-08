@@ -7,11 +7,14 @@ import com.uathub.domain.ScenarioStep;
 import com.uathub.repo.ScenarioRepository;
 import com.uathub.repo.StepResultRepository;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
@@ -149,6 +152,137 @@ public class ScenarioService {
             }
             return new ImportResult(created, updated);
         }
+    }
+
+    /** Header order of the sample template; the importer also accepts the aliases listed in ALIASES. */
+    public static final String[] TEMPLATE_HEADERS = {"Scenario ID", "Title", "LOB", "Division", "Module", "Priority",
+            "Preconditions", "Test data", "Step", "Action", "Expected"};
+
+    private static final String[][] TEMPLATE_ROWS = {
+            {"SC-001", "Mid-term adjustment: add a vessel to a live hull policy", "Marine", "UK", "Quote › Endorsement", "High",
+                    "Bound hull policy in force; user has underwriter role", "Policy [policy ref], vessel IMO [number]",
+                    "1", "Open the policy and start a mid-term adjustment", "Endorsement case opens with current risk details"},
+            {"SC-001", "", "", "", "", "", "", "", "2", "Set the effective date to today", "Date accepted; pro-rata period shown"},
+            {"SC-001", "", "", "", "", "", "", "", "3", "Add the new vessel with its hull value", "Vessel appears in the schedule"},
+            {"SC-001", "", "", "", "", "", "", "", "4", "Open Pricing summary", "Premium includes the new vessel, pro-rated from the effective date"},
+            {"SC-002", "Broker search on a large portfolio", "Casualty", "Europe", "Intake › Broker lookup", "Medium",
+                    "Broker with 500+ policies exists", "Broker [broker code]",
+                    "1", "Open a new submission and search for the broker by name", "Matching brokers listed within 5 seconds"},
+            {"SC-002", "", "", "", "", "", "", "", "2", "Select the broker", "Broker details and portfolio summary are shown"},
+            {"SC-002", "", "", "", "", "", "", "", "3", "Continue to risk details", "Submission moves to the risk details stage"},
+            {"SC-003", "Referral to senior underwriter above authority", "Property", "IM", "Quote › Referral", "High",
+                    "User's authority limit is below the quoted sum insured", "",
+                    "1", "Quote a risk above the user's authority limit", "Referral reason shown on the quote summary"},
+            {"SC-003", "", "", "", "", "", "", "", "2", "Submit for referral", "Case appears in the senior underwriter's queue"},
+            {"SC-003", "", "", "", "", "", "", "", "3", "Approve as senior underwriter", "Quote returns to the underwriter as approved"},
+    };
+
+    private static final String[][] TEMPLATE_HELP = {
+            {"Scenario ID", "Yes*", "Groups the rows of one scenario. Repeat it on every step row. Re-importing an existing ID updates that scenario.", "SC-001"},
+            {"Title", "Yes*", "What the user is trying to do. Needed on the first row of each scenario.", "Mid-term adjustment: add a vessel"},
+            {"LOB", "No", "Line of business. Pick from the list.", "Marine"},
+            {"Division", "No", "Pick from the list.", "UK"},
+            {"Module", "No", "Pega case type and stage, or screen.", "Quote › Endorsement"},
+            {"Priority", "No", "High, Medium or Low (P1 to P4 also accepted). Default Medium.", "High"},
+            {"Preconditions", "No", "What must be true before starting.", "Bound policy in force"},
+            {"Test data", "No", "Policy, quote or broker references to use.", "Policy [ref]"},
+            {"Step", "No", "Step number. Rows are sorted by it; without it, sheet order is used.", "1"},
+            {"Action", "Yes", "What the tester does in this step. One row per step.", "Open Pricing summary"},
+            {"Expected", "No", "What should happen.", "Premium includes the new vessel"},
+    };
+
+    /** Sample sheet people can copy: three scenarios across LOBs, dropdowns, and a How to fill tab. */
+    public byte[] template(List<String> lobs, List<String> divisions) throws IOException {
+        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Font base = wb.createFont();
+            base.setFontName("Arial");
+            base.setFontHeightInPoints((short) 10);
+            Font boldFont = wb.createFont();
+            boldFont.setFontName("Arial");
+            boldFont.setFontHeightInPoints((short) 10);
+            boldFont.setBold(true);
+            CellStyle head = wb.createCellStyle();
+            head.setFont(boldFont);
+            head.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+            head.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            head.setBorderBottom(BorderStyle.THIN);
+            CellStyle body = wb.createCellStyle();
+            body.setFont(base);
+            body.setWrapText(true);
+            body.setVerticalAlignment(VerticalAlignment.TOP);
+
+            Sheet sheet = wb.createSheet("Scenarios");
+            Row h = sheet.createRow(0);
+            for (int i = 0; i < TEMPLATE_HEADERS.length; i++) {
+                Cell c = h.createCell(i);
+                c.setCellValue(TEMPLATE_HEADERS[i]);
+                c.setCellStyle(head);
+            }
+            for (int r = 0; r < TEMPLATE_ROWS.length; r++) {
+                Row row = sheet.createRow(r + 1);
+                for (int i = 0; i < TEMPLATE_ROWS[r].length; i++) {
+                    Cell c = row.createCell(i);
+                    String v = TEMPLATE_ROWS[r][i];
+                    if (i == 8 && !v.isEmpty()) c.setCellValue(Integer.parseInt(v));
+                    else c.setCellValue(v);
+                    c.setCellStyle(body);
+                }
+            }
+            int[] widths = {12, 40, 14, 11, 22, 10, 32, 28, 6, 44, 44};
+            for (int i = 0; i < widths.length; i++) sheet.setColumnWidth(i, widths[i] * 256);
+            sheet.createFreezePane(0, 1);
+            DataValidationHelper dv = sheet.getDataValidationHelper();
+            addList(sheet, dv, 2, lobs);
+            addList(sheet, dv, 3, divisions);
+            addList(sheet, dv, 5, List.of("High", "Medium", "Low"));
+
+            Sheet help = wb.createSheet("How to fill");
+            String[] hh = {"Column", "Required", "What to enter", "Example"};
+            Row hr = help.createRow(0);
+            for (int i = 0; i < hh.length; i++) {
+                Cell c = hr.createCell(i);
+                c.setCellValue(hh[i]);
+                c.setCellStyle(head);
+            }
+            for (int r = 0; r < TEMPLATE_HELP.length; r++) {
+                Row row = help.createRow(r + 1);
+                for (int i = 0; i < 4; i++) {
+                    Cell c = row.createCell(i);
+                    c.setCellValue(TEMPLATE_HELP[r][i]);
+                    c.setCellStyle(body);
+                }
+            }
+            String[] notes = {
+                    "* Each scenario needs a Scenario ID or a Title. Use Scenario ID if you will re-import updates.",
+                    "One row per step. Scenario details (Title, LOB, Division, Module, Priority, Preconditions, Test data) are read from the scenario's first row; later rows can leave them blank.",
+                    "Column order doesn't matter and extra columns are ignored. The sheet must be the first tab of the workbook.",
+                    "Delete the three sample scenarios (SC-001 to SC-003) before importing your own, or they will be imported too.",
+                    "Import from Scenario library → Import Excel. Steps that already have test results can be reworded but not removed."};
+            int r = TEMPLATE_HELP.length + 2;
+            for (String n : notes) {
+                Cell c = help.createRow(r++).createCell(0);
+                c.setCellValue(n);
+                c.setCellStyle(body);
+            }
+            help.setColumnWidth(0, 16 * 256);
+            help.setColumnWidth(1, 10 * 256);
+            help.setColumnWidth(2, 80 * 256);
+            help.setColumnWidth(3, 34 * 256);
+            wb.setSheetOrder("Scenarios", 0);
+            wb.setActiveSheet(0);
+            wb.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    private static void addList(Sheet sheet, DataValidationHelper dv, int col, List<String> values) {
+        if (values == null || values.isEmpty()) return;
+        String joined = String.join(",", values);
+        if (joined.length() > 250) return; // Excel's limit for an inline list
+        DataValidation v = dv.createValidation(dv.createExplicitListConstraint(values.toArray(new String[0])),
+                new CellRangeAddressList(1, 2000, col, col));
+        v.setShowErrorBox(false); // suggest, don't block: the importer accepts any text
+        sheet.addValidationData(v);
     }
 
     private void apply(Scenario s, ScenarioInput in) {

@@ -7,7 +7,10 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb" th:text="${project.name} + ' / ' + (${project.currentCycle} ?: 'No cycle')"></p>
+                <p class="crumb"><span th:text="${project.name}"></span>
+                    <span th:text="${allCycles} ? 'All UAT cycles' : ${cycle.name}"></span>
+                    <a th:if="${cycle != null}" th:href="${allCycles} ? @{/} : @{/(all=true)}"
+                       th:text="${allCycles} ? 'Show ' + ${cycle.name} + ' only' : 'Show all cycles'"></a></p>
                 <h1 class="title">Feedback register</h1>
             </div>
             <div class="actions">
@@ -17,15 +20,15 @@
                         <input type="file" name="file" accept=".xlsx,.xls" data-autosubmit hidden>
                     </label>
                 </form>
-                <a class="btn ghost" th:href="@{/export}">Export</a>
-                <a th:if="${me.canLog()}" class="btn primary" th:href="@{/feedback/new}">+ Log feedback</a>
+                <a class="btn ghost" th:href="${allCycles} ? @{/export(all=true)} : @{/export}">Export</a>
+                <a th:if="${me.canLog() and cycle != null and cycle.open}" class="btn primary" th:href="@{/feedback/new}">+ Log feedback</a>
             </div>
         </header>
 
         <div th:replace="~{fragments :: flash}"></div>
 
         <nav class="strip" aria-label="Filter by stage">
-            <a th:each="c : ${counts}" th:href="@{/(stage=${c.stage().name()})}"
+            <a th:each="c : ${counts}" th:href="${allCycles} ? @{/(stage=${c.stage().name()}, all=true)} : @{/(stage=${c.stage().name()})}"
                th:classappend="(${fStage} == ${c.stage()} ? 'on ' : '') + 's-' + ${c.stage().css}">
                 <span class="strip-label"><i></i><span th:text="${c.stage().label}"></span></span>
                 <b th:text="${c.count()}"></b>
@@ -51,18 +54,20 @@
                 <option th:each="t : ${types}" th:value="${t.name()}" th:text="${t.label}" th:selected="${t == fType}"></option>
             </select>
             <input type="hidden" name="stage" th:if="${fStage != null}" th:value="${fStage.name()}">
+            <input type="hidden" name="all" th:if="${allCycles}" value="true">
             <button class="btn ghost" type="submit">Search</button>
-            <a th:if="${filtered}" class="linkish" th:href="@{/}">Clear filters</a>
+            <a th:if="${filtered}" class="linkish" th:href="${allCycles} ? @{/(all=true)} : @{/}">Clear filters</a>
         </form>
 
         <div class="table-wrap" th:unless="${rows.isEmpty()}">
             <table class="table">
                 <thead>
-                <tr><th>ID</th><th>Feedback</th><th>LOB / division</th><th>Type</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr>
+                <tr><th>ID</th><th th:if="${allCycles}">Cycle</th><th>Feedback</th><th>LOB / division</th><th>Type</th><th>Severity</th><th>Stage</th><th>Decision</th><th>Jira</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="f : ${rows}">
                     <td class="mono id"><a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.code}"></a></td>
+                    <td th:if="${allCycles}" class="muted-2 small" th:text="${f.cycle} ?: '—'"></td>
                     <td class="title-cell">
                         <a th:href="@{/feedback/{id}(id=${f.id})}" th:text="${f.title}"></a>
                         <small th:if="${!f.where.isEmpty()}" th:text="${f.where}"></small>

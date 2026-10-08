@@ -3,6 +3,7 @@ package com.uathub.web;
 import com.uathub.domain.*;
 import com.uathub.repo.ScenarioRepository;
 import com.uathub.security.CurrentUser;
+import com.uathub.service.CycleService;
 import com.uathub.service.ProjectContext;
 import com.uathub.service.TestingService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,40 +28,67 @@ public class RunController {
     private final ProjectContext ctx;
     private final TestingService testing;
     private final ScenarioRepository scenarios;
+    private final CycleService cycles;
 
-    public RunController(ProjectContext ctx, TestingService testing, ScenarioRepository scenarios) {
+    public RunController(ProjectContext ctx, TestingService testing, ScenarioRepository scenarios, CycleService cycles) {
         this.ctx = ctx;
         this.testing = testing;
         this.scenarios = scenarios;
+        this.cycles = cycles;
     }
 
+    /** Cycle overview: its runs, each scenario's latest result by LOB, sign-off and issues. */
     @GetMapping
-    public String board(@AuthenticationPrincipal CurrentUser me, HttpSession session, Model model,
-                        @RequestParam(required = false) Long id) {
+    public String cycleBoard(@AuthenticationPrincipal CurrentUser me, HttpSession session, Model model) {
         Project project = ctx.current(me, session);
         if (project == null) return "no-project";
-        TestRun run = id != null ? testing.loadRun(id, project) : testing.currentRun(project).orElse(null);
-        model.addAttribute("run", run);
-        model.addAttribute("allRuns", testing.runs(project));
-        if (run != null) {
-            List<TestingService.LobRow> lobRows = testing.lobRows(run);
-            TestingService.Totals t = testing.totals(testing.executionsByScenario(run).values());
-            model.addAttribute("totals", t);
-            model.addAttribute("lobRows", lobRows);
-            model.addAttribute("testers", testing.testerRows(run));
-            model.addAttribute("issues", testing.issueRows(run));
-            model.addAttribute("fixCandidates", testing.fixCandidates(run));
+        UatCycle cycle = cycles.current(project, session);
+        if (cycle != null) {
+            model.addAttribute("runCards", testing.runCards(cycle));
+            model.addAttribute("totals", testing.totals(testing.latestPerScenario(cycle)));
+            model.addAttribute("lobRows", testing.lobRows(cycle));
+            model.addAttribute("issues", testing.issueRows(cycle));
         }
-        return "runs";
+        return "cycle";
+    }
+
+    /** One run: progress, testers, issues raised in it, new builds. */
+    @GetMapping("/{id}")
+    public String runBoard(@AuthenticationPrincipal CurrentUser me, HttpSession session, @PathVariable Long id, Model model) {
+        Project project = ctx.require(me, session);
+        TestRun run = testing.loadRun(id, project);
+        if (run.getUatCycle() != null && (cycles.current(project, session) == null
+                || !run.getUatCycle().getId().equals(cycles.current(project, session).getId()))) {
+            cycles.select(project, session, run.getUatCycle().getId());
+            return "redirect:/runs/" + id;
+        }
+        model.addAttribute("run", run);
+        model.addAttribute("totals", testing.totals(testing.executionsByScenario(run).values()));
+        model.addAttribute("testers", testing.testerRows(run));
+        model.addAttribute("issues", testing.issueRows(run));
+        model.addAttribute("fixCandidates", testing.fixCandidates(run));
+        return "run";
     }
 
     @PostMapping
     public String create(@AuthenticationPrincipal CurrentUser me, HttpSession session,
                          @RequestParam String name, @RequestParam(required = false) String build,
+                         @RequestParam(required = false) Long copyFrom,
+                         @RequestParam(required = false, defaultValue = "none") String copyMode,
                          RedirectAttributes ra) {
-        TestRun run = testing.createRun(ctx.require(me, session), ctx.user(me), name, build);
-        ra.addFlashAttribute("ok", "Started " + run.getLabel() + ". Now assign scenarios to people.");
+        UatCycle cycle = cycles.requireOpen(ctx.require(me, session), session);
+        TestRun run = testing.createRun(cycle, ctx.user(me), name, build, copyFrom, copyMode);
+        ra.addFlashAttribute("ok", "Started " + run.getLabel() + " in " + cycle.getName() + ". Check the assignments.");
         return "redirect:/runs/" + run.getId() + "/assign";
+    }
+
+    @PostMapping("/{id}/open")
+    public String setOpen(@AuthenticationPrincipal CurrentUser me, HttpSession session, @PathVariable Long id,
+                          @RequestParam boolean open, RedirectAttributes ra) {
+        TestRun run = testing.loadRun(id, ctx.require(me, session));
+        testing.setRunOpen(run, open);
+        ra.addFlashAttribute("ok", run.getName() + (open ? " reopened." : " closed. Its results stay in the cycle."));
+        return "redirect:/runs/" + id;
     }
 
     @GetMapping("/{id}/assign")
@@ -117,29 +145,41 @@ public class RunController {
         int n = testing.deployBuild(run, ctx.user(me), build, fixed);
         ra.addFlashAttribute("ok", "Now testing " + build.trim() + "."
                 + (n > 0 ? " " + n + " scenario(s) sent back for re-test." : ""));
-        return "redirect:/runs?id=" + id;
+        return "redirect:/runs/" + id;
     }
 
-    @PostMapping("/{id}/signoff")
-    public String signOff(@AuthenticationPrincipal CurrentUser me, HttpSession session, @PathVariable Long id,
+    /** Business sign-off of one LOB for the current UAT cycle. */
+    @PostMapping("/signoff")
+    public String signOff(@AuthenticationPrincipal CurrentUser me, HttpSession session,
                           @RequestParam String lob, @RequestParam(required = false) String note,
                           RedirectAttributes ra) {
-        TestRun run = testing.loadRun(id, ctx.require(me, session));
-        LobSignOff s = testing.signOff(run, ctx.user(me), lob, note);
-        ra.addFlashAttribute("ok", "Signed off " + s.getLob() + "."
+        UatCycle cycle = cycles.require(ctx.require(me, session), session);
+        CycleSignOff s = testing.signOff(cycle, ctx.user(me), lob, note);
+        ra.addFlashAttribute("ok", "Signed off " + s.getLob() + " for " + cycle.getName() + "."
                 + (s.getAcceptedIssues() == null ? "" : " Accepted open issues: " + s.getAcceptedIssues() + "."));
-        return "redirect:/runs?id=" + id;
+        return "redirect:/runs";
+    }
+
+    @GetMapping("/cycle-export")
+    public ResponseEntity<byte[]> exportCycle(@AuthenticationPrincipal CurrentUser me, HttpSession session) throws IOException {
+        UatCycle cycle = cycles.require(ctx.require(me, session), session);
+        return xlsx(cycle.getName(), testing.export(cycle));
     }
 
     @GetMapping("/{id}/export")
     public ResponseEntity<byte[]> export(@AuthenticationPrincipal CurrentUser me, HttpSession session,
                                          @PathVariable Long id) throws IOException {
         TestRun run = testing.loadRun(id, ctx.require(me, session));
-        String name = (run.getLabel()).replaceAll("[^A-Za-z0-9]+", "-") + ".xlsx";
+        String prefix = run.getUatCycle() == null ? "" : run.getUatCycle().getName() + " ";
+        return xlsx(prefix + run.getLabel(), testing.export(run));
+    }
+
+    private static ResponseEntity<byte[]> xlsx(String title, byte[] body) {
+        String name = title.replaceAll("[^A-Za-z0-9]+", "-") + ".xlsx";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(name).build().toString())
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(testing.export(run));
+                .body(body);
     }
 
     private static Long parse(String s) {

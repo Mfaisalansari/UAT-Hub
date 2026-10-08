@@ -4,17 +4,17 @@ import jakarta.persistence.*;
 
 import java.time.Instant;
 
-/** Business sign-off of one line of business within a test run. */
+/** Business sign-off of one line of business for a whole UAT cycle. */
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"run_id", "lob"}))
-public class LobSignOff {
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"uat_cycle_id", "lob"}))
+public class CycleSignOff {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(optional = false)
-    private TestRun run;
+    private UatCycle uatCycle;
 
     @Column(nullable = false)
     private String lob;
@@ -32,8 +32,8 @@ public class LobSignOff {
     private Instant signedAt = Instant.now();
 
     public Long getId() { return id; }
-    public TestRun getRun() { return run; }
-    public void setRun(TestRun run) { this.run = run; }
+    public UatCycle getUatCycle() { return uatCycle; }
+    public void setUatCycle(UatCycle uatCycle) { this.uatCycle = uatCycle; }
     public String getLob() { return lob; }
     public void setLob(String lob) { this.lob = lob; }
     public AppUser getSignedBy() { return signedBy; }

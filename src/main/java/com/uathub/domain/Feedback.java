@@ -14,7 +14,11 @@ public class Feedback {
     @ManyToOne(optional = false)
     private Project project;
 
+    /** Cycle name at the time it was logged (kept as text for exports and Jira labels). */
     private String cycle;
+
+    @ManyToOne
+    private UatCycle uatCycle;
     private String lob;
     private String division;
     private String module;   // Pega case type > stage
@@ -95,6 +99,8 @@ public class Feedback {
     public void setProject(Project project) { this.project = project; }
     public String getCycle() { return cycle; }
     public void setCycle(String cycle) { this.cycle = cycle; }
+    public UatCycle getUatCycle() { return uatCycle; }
+    public void setUatCycle(UatCycle uatCycle) { this.uatCycle = uatCycle; }
     public String getLob() { return lob; }
     public void setLob(String lob) { this.lob = lob; }
     public String getDivision() { return division; }

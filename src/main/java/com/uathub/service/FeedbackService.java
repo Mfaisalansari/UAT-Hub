@@ -43,10 +43,10 @@ public class FeedbackService {
     }
 
     @Transactional
-    public Feedback create(Project project, AppUser by, FeedbackForm form, List<MultipartFile> files) {
+    public Feedback create(Project project, UatCycle cycle, AppUser by, FeedbackForm form, List<MultipartFile> files) {
         Feedback f = new Feedback();
         f.setProject(project);
-        f.setCycle(project.getCurrentCycle());
+        setCycle(f, cycle);
         f.setRaisedBy(by);
         apply(f, form);
         if (form.type() != null) f.setType(form.type());
@@ -58,9 +58,9 @@ public class FeedbackService {
     }
 
     @Transactional
-    public Feedback importRow(Project project, AppUser by, Feedback f) {
+    public Feedback importRow(Project project, UatCycle cycle, AppUser by, Feedback f) {
         f.setProject(project);
-        f.setCycle(project.getCurrentCycle());
+        setCycle(f, cycle);
         f.setRaisedBy(by);
         f = repo.save(f);
         log(f, by, "Imported from Excel", null);
@@ -174,6 +174,11 @@ public class FeedbackService {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static void setCycle(Feedback f, UatCycle cycle) {
+        f.setUatCycle(cycle);
+        f.setCycle(cycle == null ? null : cycle.getName());
     }
 
     private void apply(Feedback f, FeedbackForm form) {

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${cycle != null} ? ${cycle.name} : 'UAT cycle')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('runs')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb" th:if="${cycle != null}">
+                    <span th:text="${project.name}"></span>
+                    <span th:if="${cycle.releaseName != null}" th:text="${cycle.releaseName}"></span>
+                    <span th:if="${!cycle.dates.isEmpty()}" th:text="${cycle.dates}"></span>
+                    <span th:unless="${cycle.open}" class="xs x-not_started">Closed</span></p>
+                <h1 class="title" th:text="${cycle != null} ? ${cycle.name} : 'UAT cycle'"></h1>
+            </div>
+            <div class="actions" th:if="${cycle != null}">
+                <a class="btn ghost" th:href="@{/runs/cycle-export}">Export cycle report</a>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <div class="empty" th:if="${cycle == null}">
+            <h2>This project has no UAT cycle yet</h2>
+            <p th:if="${me.canManageTests()}">Create one on the <a th:href="@{/cycles}">UAT cycles</a> page, e.g. "October 2026 release".</p>
+            <p th:unless="${me.canManageTests()}">Your QA lead creates a cycle for each UAT window.</p>
+        </div>
+
+        <th:block th:if="${cycle != null}">
+            <section class="overall" th:if="${totals.total() > 0}">
+                <div class="seg-bar">
+                    <i class="s-pass" th:style="'flex-grow:' + ${totals.passed()}"></i>
+                    <i class="s-fail" th:style="'flex-grow:' + ${totals.failed()}"></i>
+                    <i class="s-blocked" th:style="'flex-grow:' + ${totals.blocked()}"></i>
+                    <i class="s-retest" th:style="'flex-grow:' + ${totals.retest()}"></i>
+                    <i class="s-none" th:style="'flex-grow:' + ${totals.notRun()}"></i>
+                </div>
+                <p class="legend">
+                    <span><i class="s-pass"></i>Passed <b th:text="${totals.passed()}"></b></span>
+                    <span><i class="s-fail"></i>Failed <b th:text="${totals.failed()}"></b></span>
+                    <span><i class="s-blocked"></i>Blocked <b th:text="${totals.blocked()}"></b></span>
+                    <span><i class="s-retest"></i>Re-test <b th:text="${totals.retest()}"></b></span>
+                    <span><i class="s-none"></i>Not run <b th:text="${totals.notRun()}"></b></span>
+                    <span class="push-right mono small muted" th:text="${totals.total()} + ' scenarios · latest result across all runs'"></span>
+                </p>
+            </section>
+
+            <section class="stack-sm">
+                <h2 class="h2">Runs in this cycle <span class="mono muted small" th:text="${runCards.size()}"></span></h2>
+                <div class="run-grid">
+                    <a th:each="rc : ${runCards}" class="run-card" th:href="@{/runs/{id}(id=${rc.run().id})}"
+                       th:classappend="${rc.run().active} ? '' : 'closed'">
+                        <span class="rc-head"><b th:text="${rc.run().name}"></b>
+                            <span class="xs" th:classappend="${rc.run().active} ? 'x-passed' : 'x-not_started'" th:text="${rc.run().active} ? 'Open' : 'Closed'"></span></span>
+                        <small class="mono muted" th:text="${rc.run().build != null} ? 'Build ' + ${rc.run().build} : 'No build set'"></small>
+                        <span class="seg-bar thin" th:if="${rc.totals().total() > 0}">
+                            <i class="s-pass" th:style="'flex-grow:' + ${rc.totals().passed()}"></i>
+                            <i class="s-fail" th:style="'flex-grow:' + ${rc.totals().failed()}"></i>
+                            <i class="s-blocked" th:style="'flex-grow:' + ${rc.totals().blocked()}"></i>
+                            <i class="s-retest" th:style="'flex-grow:' + ${rc.totals().retest()}"></i>
+                            <i class="s-none" th:style="'flex-grow:' + ${rc.totals().notRun()}"></i>
+                        </span>
+                        <small class="muted-2" th:text="${rc.totals().total() == 0} ? 'No scenarios assigned yet' : ${rc.totals().percentDone()} + '% done of ' + ${rc.totals().total()} + ' scenarios'"></small>
+                    </a>
+
+                    <details class="run-card new-run" th:if="${me.canManageTests() and cycle.open}" th:open="${runCards.isEmpty()}">
+                        <summary><b>+ New run</b><small class="muted-2 block">Several runs can be open at once</small></summary>
+                        <form method="post" th:action="@{/runs}" class="stack-sm">
+                            <div class="field"><label for="r-name">Run name</label>
+                                <input id="r-name" name="name" required th:placeholder="${runCards.isEmpty()} ? 'e.g. Run 1' : 'e.g. Run ' + ${runCards.size() + 1} + ' or Marine regression'"></div>
+                            <div class="field"><label for="r-build">Build / version</label><input id="r-build" name="build" placeholder="e.g. 4.2.1"></div>
+                            <th:block th:unless="${runCards.isEmpty()}">
+                                <div class="field"><label for="r-from">Start with scenarios from</label>
+                                    <select id="r-from" name="copyFrom">
+                                        <option value="">Nothing, I'll assign</option>
+                                        <option th:each="rc : ${runCards}" th:value="${rc.run().id}" th:text="${rc.run().label}"></option>
+                                    </select></div>
+                                <fieldset class="field">
+                                    <legend>Which scenarios</legend>
+                                    <div class="checks column">
+                                        <label><input type="radio" name="copyMode" value="all" checked><span>All of them, same people</span></label>
+                                        <label><input type="radio" name="copyMode" value="unfinished"><span>Only those not passed</span></label>
+                                    </div>
+                                </fieldset>
+                            </th:block>
+                            <button class="btn primary" type="submit">Start run</button>
+                        </form>
+                    </details>
+                </div>
+                <p class="small muted-2" th:if="${runCards.isEmpty() and !me.canManageTests()}">No runs yet. QA starts them when a build is ready.</p>
+            </section>
+
+            <div class="split runs-split" th:unless="${lobRows.isEmpty()}">
+                <section class="stack">
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Line of business</th><th>Progress</th><th>Pass</th><th>Fail</th><th>Blocked</th><th>Open</th><th>Issues</th><th>Business sign-off</th></tr></thead>
+                            <tbody>
+                            <tr th:each="l : ${lobRows}" th:with="t=${l.totals()}">
+                                <td><b th:text="${l.lob()}"></b></td>
+                                <td class="w-bar"><span class="seg-bar thin">
+                                    <i class="s-pass" th:style="'flex-grow:' + ${t.passed()}"></i>
+                                    <i class="s-fail" th:style="'flex-grow:' + ${t.failed()}"></i>
+                                    <i class="s-blocked" th:style="'flex-grow:' + ${t.blocked()}"></i>
+                                    <i class="s-retest" th:style="'flex-grow:' + ${t.retest()}"></i>
+                                    <i class="s-none" th:style="'flex-grow:' + ${t.notRun()}"></i></span></td>
+                                <td class="mono c-pass" th:text="${t.passed()}"></td>
+                                <td class="mono c-fail" th:text="${t.failed()}"></td>
+                                <td class="mono c-blocked" th:text="${t.blocked()}"></td>
+                                <td class="mono muted" th:text="${t.notRun() + t.retest()}"></td>
+                                <td class="mono" th:classappend="${l.openIssues() > 0} ? 'c-fail' : 'muted'" th:text="${l.openIssues()}"></td>
+                                <td>
+                                    <span th:if="${l.signOff() != null}" class="signed" th:title="${l.signOff().note}"
+                                          th:text="'Signed off · ' + ${l.signOff().signedBy != null ? l.signOff().signedBy.name : ''}"></span>
+                                    <details th:if="${l.signOff() == null and me.canSignOff() and cycle.open}" class="signoff">
+                                        <summary class="linkish">Sign off</summary>
+                                        <form method="post" th:action="@{/runs/signoff}" class="stack-sm">
+                                            <input type="hidden" name="lob" th:value="${l.lob()}">
+                                            <label class="sr" th:for="'note-' + ${lStat.index}">Note</label>
+                                            <textarea th:id="'note-' + ${lStat.index}" name="note" rows="2"
+                                                      th:placeholder="${l.openIssues() > 0 or t.notRun() + t.retest() > 0} ? 'Required: why sign off with open items' : 'Optional note'"></textarea>
+                                            <button class="btn primary small-btn" type="submit">Confirm sign-off</button>
+                                        </form>
+                                    </details>
+                                    <span th:if="${l.signOff() == null and !(me.canSignOff() and cycle.open)}" class="muted">—</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="small muted-2">Each scenario counts once: its result in the newest run where it was started.</p>
+                </section>
+
+                <aside class="side-stack">
+                    <h2 class="h2">Issues from testing</h2>
+                    <p class="small muted-2" th:if="${issues.isEmpty()}">None raised in this cycle yet.</p>
+                    <a th:each="i : ${issues}" class="issue-card" th:href="@{/feedback/{id}(id=${i.feedback().id})}"
+                       th:classappend="${i.feedback().stage.name() == 'CLOSED'} ? 'done'">
+                        <span class="mono small"><span class="lime" th:text="${i.feedback().code}"></span>
+                            <span th:if="${i.feedback().fixedInBuild != null and i.feedback().stage.name() != 'CLOSED'}" class="cyan" th:text="'Fixed in ' + ${i.feedback().fixedInBuild} + ' · re-test'"></span>
+                            <span th:unless="${i.feedback().fixedInBuild != null and i.feedback().stage.name() != 'CLOSED'}" class="muted" th:text="${i.feedback().stage.label}"></span></span>
+                        <span th:text="${i.feedback().title}"></span>
+                        <small class="muted" th:text="${i.impact()}"></small>
+                    </a>
+                </aside>
+            </div>
+        </th:block>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

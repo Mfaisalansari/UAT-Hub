@@ -10,7 +10,7 @@
                 <p class="crumb"><a th:href="@{/}">← Register</a></p>
                 <h1 class="title">Log feedback</h1>
             </div>
-            <p class="mono muted" th:text="${project.name} + ' / ' + (${project.currentCycle} ?: 'No cycle')"></p>
+            <p class="mono muted" th:text="${project.name} + ' / ' + (${cycle != null} ? ${cycle.name} : 'No UAT cycle')"></p>
         </header>
 
         <div th:replace="~{fragments :: flash}"></div>

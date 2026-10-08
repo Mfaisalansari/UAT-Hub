@@ -2,6 +2,7 @@ package com.uathub.web;
 
 import com.uathub.config.UatHubProperties;
 import com.uathub.security.CurrentUser;
+import com.uathub.service.CycleService;
 import com.uathub.service.ProjectContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,10 +21,21 @@ public class PagesController {
 
     private final ProjectContext ctx;
     private final UatHubProperties props;
+    private final CycleService cycles;
 
-    public PagesController(ProjectContext ctx, UatHubProperties props) {
+    public PagesController(ProjectContext ctx, UatHubProperties props, CycleService cycles) {
         this.ctx = ctx;
         this.props = props;
+        this.cycles = cycles;
+    }
+
+    /** Switch the UAT cycle being viewed (sidebar picker). */
+    @PostMapping("/cycle/select")
+    public String selectCycle(@AuthenticationPrincipal CurrentUser me, HttpSession session,
+                              @RequestParam Long id, HttpServletRequest req) {
+        cycles.select(ctx.require(me, session), session, id);
+        String back = GlobalModel.sameSitePath(req.getHeader("Referer"));
+        return "redirect:" + (back.startsWith("/runs/") || back.startsWith("/exec/") ? "/runs" : back);
     }
 
     @GetMapping("/no-access")

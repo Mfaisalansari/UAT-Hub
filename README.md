@@ -22,7 +22,8 @@ On first start the console prints the **admin link**:
 
 Open it, then:
 
-1. **Projects & Jira**: rename "My project", set the UAT cycle and the Jira mapping.
+1. **Projects & Jira**: rename "My project" and set the Jira mapping. **UAT cycles**: rename "UAT cycle 1"
+   (e.g. "October 2026 release") and add dates.
 2. **Team & access**: add people with a role and project, copy each personal link and send it to them.
 
 The link is printed again on every start, so the admin can't get locked out.
@@ -64,7 +65,7 @@ rationale, labels `UAT-Feedback`, the cycle, LOB, division and the UAT ID, plus 
 | | Tester | QA lead | Business | Admin |
 |---|---|---|---|---|
 | Run assigned scenarios, raise issues from steps | ● | ● | ● | ● |
-| Scenario library, test runs, assignment, new builds | | ● | | ● |
+| UAT cycles, scenario library, runs, assignment, new builds | | ● | | ● |
 | LOB sign-off | | | ● | ● |
 | Log general feedback | ● | ● | | ● |
 | Triage, edit, import Excel | | ● | | ● |
@@ -80,25 +81,51 @@ rationale, labels `UAT-Feedback`, the cycle, LOB, division and the UAT ID, plus 
 Treat links like passwords. For use beyond the internal network, put the app behind HTTPS
 (the cookie is then sent as Secure automatically).
 
+## UAT cycles
+
+A project has one **UAT cycle** per UAT window, e.g. "October 2026 release" and "November 2026 release".
+
+```
+Project ─┬─ Scenario library (shared by every cycle)
+         ├─ UAT cycle: October 2026 ─┬─ Run 1 (build 4.2.1)
+         │                           ├─ Run 2 (build 4.2.3)
+         │                           └─ feedback, issues, LOB sign-offs
+         └─ UAT cycle: November 2026 ─ ...
+```
+
+- **Add a cycle**: QA lead or admin → **UAT cycles** → name, release, start and end dates → **Create cycle**.
+- **Switch cycles**: the **UAT cycle** picker in the sidebar, under the project. Everything you see (register,
+  My scenarios, Cycle & runs) is for that cycle. The register's **Show all cycles** link lists every cycle at once.
+- **Close a cycle** when its UAT window ends: its data stays viewable, but nothing new can be added to it.
+- Each cycle keeps its own runs, step results, feedback, issues and sign-offs, so October stays exactly as it
+  was when November starts. Feedback and Jira issues carry the cycle name.
+
+Data created before cycles existed is moved into a cycle on start-up (named after the project's old
+"current UAT cycle" field, or "UAT cycle 1").
+
 ## Testing with scenarios
 
-1. **Scenario library** (QA lead): import the scenario sheet or write scenarios in the app. Each has an ID
+1. **Scenario library** (QA lead): import scenarios from Excel or write them in the app. **Download template**
+   gives a sample sheet with three example scenarios and a *How to fill* tab. Each scenario has an ID
    (e.g. SC-014), title, LOB, division, module, priority, preconditions, test data and numbered steps with
    expected results.
-2. **Test run** (QA lead): start a run, e.g. "UAT cycle 3" on build "4.2.1", then **Assign scenarios** to
-   testers and business users (per row, or tick several and assign in bulk).
-3. **My scenarios** (tester or business user): work through each scenario step by step, marking Pass, Fail,
-   Blocked or N/A, with the actual result and pasted screenshots.
+2. **Cycle & runs** (QA lead): start one or more runs in the cycle, e.g. "Run 1" on build "4.2.1", or parallel
+   runs such as "Marine regression". A new run can start with the scenarios of an earlier run: all of them, or
+   only those not passed. Then **Assign scenarios** to testers and business users (per row, or in bulk).
+3. **My scenarios** (tester or business user): everything assigned to you in the cycle's open runs. Work through
+   each scenario step by step, marking Pass, Fail, Blocked or N/A, with the actual result and pasted screenshots.
 4. **Raise issue** on a failed or blocked step creates a feedback item pre-filled with the scenario, step,
    expected and actual result, LOB, division, module, build and the step's evidence. It then follows the
    normal flow: triage → business decision → Jira. You can also link an issue that is already logged.
-5. **Deploy new build** (QA lead): record the new build and tick the issues it fixes. Their scenarios go back
+5. **Deploy new build** (QA lead, on a run's page): record the new build and tick the issues it fixes. Their scenarios go back
    to the testers as **Re-test**. Finishing a re-test closes the issue as verified if the step now passes,
    or reopens it if it fails again.
-6. **Sign-off** (business): sign off each LOB on the Test run page. Unfinished scenarios or open issues need
-   a note, and the open issues are recorded as accepted exceptions.
+6. **Sign-off** (business): sign off each LOB for the whole cycle on the **Cycle & runs** page. It uses each
+   scenario's latest result across all runs. Unfinished scenarios or open issues need a note, and the open
+   issues are recorded as accepted exceptions.
 
-**Export report** on the Test run page downloads every scenario's status, step counts and linked issues.
+**Export cycle report** gives every scenario's latest result in the cycle; **Export run** on a run's page gives
+that run only.
 
 ### Scenario Excel import
 
@@ -156,11 +183,11 @@ LOBs and divisions are set in `application.properties` (`uathub.lobs`, `uathub.d
 src/main/java/com/uathub
 ├── config/     UatHubProperties
 ├── domain/     Project, AppUser, Feedback, Attachment, AuditEntry,
-│               Scenario, ScenarioStep, TestRun, Execution, StepResult, IssueLink, LobSignOff, enums
+│               UatCycle, Scenario, ScenarioStep, TestRun, Execution, StepResult, IssueLink, CycleSignOff, enums
 ├── repo/       Spring Data repositories
 ├── security/   AccessCookieFilter (replaces login), SecurityConfig, CurrentUser
-├── service/    FeedbackService, TestingService, ScenarioService, JiraService, ExcelService,
-│               TeamService, AttachmentStorage, Bootstrap
+├── service/    FeedbackService, CycleService, TestingService, ScenarioService, JiraService, ExcelService,
+│               TeamService, AttachmentStorage, Bootstrap, SchemaFixes
 └── web/        Controllers, GlobalModel (nav + errors), Fmt (template helpers)
 src/main/resources
 ├── templates/  Thymeleaf pages

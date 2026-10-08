@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('UAT cycles')}"></head>
+<body>
+<div class="shell">
+    <nav th:replace="~{fragments :: sidebar('cycles')}"></nav>
+    <main class="main">
+        <header class="page-head">
+            <div>
+                <p class="crumb" th:text="${project.name} + ' · one cycle per UAT window, e.g. each monthly release'"></p>
+                <h1 class="title">UAT cycles</h1>
+            </div>
+        </header>
+
+        <div th:replace="~{fragments :: flash}"></div>
+
+        <form class="add-cycle" method="post" th:action="@{/cycles}">
+            <div class="field"><label for="c-name">New UAT cycle <span class="req">*</span></label>
+                <input id="c-name" name="name" required placeholder="e.g. November 2026 release"></div>
+            <div class="field"><label for="c-rel">Release</label>
+                <input id="c-rel" name="releaseName" placeholder="e.g. R3.3"></div>
+            <div class="field"><label for="c-start">Starts</label><input id="c-start" name="startDate" type="date"></div>
+            <div class="field"><label for="c-end">Ends</label><input id="c-end" name="endDate" type="date"></div>
+            <button class="btn primary" type="submit">Create cycle</button>
+        </form>
+        <p class="small muted-2">The scenario library is shared by every cycle of the project. Each cycle keeps its own runs,
+            results, feedback, issues and sign-offs, so October's data stays as it was when November starts.</p>
+
+        <div class="empty" th:if="${allCycles.isEmpty()}">
+            <h2>No UAT cycles yet</h2>
+            <p>Create the first one above.</p>
+        </div>
+
+        <div class="table-wrap" th:unless="${allCycles.isEmpty()}">
+            <table class="table cycles-table">
+                <thead><tr><th>UAT cycle</th><th>Release</th><th>Dates</th><th>Runs</th><th>Feedback</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="c : ${allCycles}" th:classappend="(${cycle != null and c.id == cycle.id} ? 'row-on ' : '') + (${c.open} ? '' : 'row-off')">
+                    <td>
+                        <form method="post" th:action="@{/cycle/select}" class="inline">
+                            <input type="hidden" name="id" th:value="${c.id}">
+                            <button class="linkish strong" type="submit" th:text="${c.name}" th:title="'View ' + ${c.name}"></button>
+                        </form>
+                        <small class="block muted" th:if="${cycle != null and c.id == cycle.id}">Viewing now</small>
+                    </td>
+                    <td class="muted-2" th:text="${c.releaseName} ?: '—'"></td>
+                    <td class="muted-2 small" th:text="${c.dates.isEmpty()} ? '—' : ${c.dates}"></td>
+                    <td class="mono" th:text="${runCount.get(c.id)}"></td>
+                    <td class="mono" th:text="${feedbackCount.get(c.id)}"></td>
+                    <td><span class="xs" th:classappend="${c.open} ? 'x-passed' : 'x-not_started'" th:text="${c.open} ? 'Open' : 'Closed'"></span></td>
+                    <td class="row-actions">
+                        <details class="role-edit">
+                            <summary class="linkish">Edit</summary>
+                            <form method="post" th:action="@{/cycles/{id}(id=${c.id})}" class="stack-sm edit-cycle">
+                                <input name="name" required th:value="${c.name}" aria-label="Name">
+                                <input name="releaseName" th:value="${c.releaseName}" placeholder="Release" aria-label="Release">
+                                <input name="startDate" type="date" th:value="${c.startDate}" aria-label="Starts">
+                                <input name="endDate" type="date" th:value="${c.endDate}" aria-label="Ends">
+                                <button class="btn ghost small-btn" type="submit">Save</button>
+                            </form>
+                        </details>
+                        <form method="post" th:action="@{/cycles/{id}/open(id=${c.id})}" class="inline"
+                              th:attr="data-confirm=${c.open} ? 'Close ' + ${c.name} + '? No new feedback, runs or results can be added to it, but everything stays viewable.' : null">
+                            <input type="hidden" name="open" th:value="${!c.open}">
+                            <button class="linkish" th:classappend="${c.open} ? 'danger'" type="submit" th:text="${c.open} ? 'Close' : 'Reopen'"></button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

@@ -5,6 +5,8 @@ import com.uathub.domain.Project;
 import com.uathub.domain.Stage;
 import com.uathub.repo.FeedbackRepository;
 import com.uathub.security.CurrentUser;
+import com.uathub.domain.UatCycle;
+import com.uathub.service.CycleService;
 import com.uathub.service.ProjectContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -25,11 +27,13 @@ public class GlobalModel {
     private final ProjectContext ctx;
     private final FeedbackRepository feedback;
     private final UatHubProperties props;
+    private final CycleService cycles;
 
-    public GlobalModel(ProjectContext ctx, FeedbackRepository feedback, UatHubProperties props) {
+    public GlobalModel(ProjectContext ctx, FeedbackRepository feedback, UatHubProperties props, CycleService cycles) {
         this.ctx = ctx;
         this.feedback = feedback;
         this.props = props;
+        this.cycles = cycles;
     }
 
     @ModelAttribute
@@ -42,7 +46,10 @@ public class GlobalModel {
         model.addAttribute("project", p);
         model.addAttribute("myProjects", ctx.accessible(me));
         if (p != null) {
-            model.addAttribute("navTotal", feedback.countByProject(p));
+            UatCycle c = cycles.current(p, session);
+            model.addAttribute("cycle", c);
+            model.addAttribute("myCycles", cycles.cycles(p));
+            model.addAttribute("navTotal", c == null ? feedback.countByProject(p) : feedback.countByProjectAndUatCycle(p, c));
             model.addAttribute("navReview", feedback.countByProjectAndStage(p, Stage.BUSINESS_REVIEW));
             model.addAttribute("navJira", feedback.countByProjectAndStage(p, Stage.DECIDED));
         }

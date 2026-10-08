@@ -27,7 +27,10 @@ public class TestingService {
         public int percentDone() { return total == 0 ? 0 : (int) Math.round(done() * 100.0 / total); }
     }
 
-    public record LobRow(String lob, Totals totals, LobSignOff signOff, long openIssues) {}
+    public record LobRow(String lob, Totals totals, CycleSignOff signOff, long openIssues) {}
+
+    /** A run with its own totals, for the cycle overview. */
+    public record RunCard(TestRun run, Totals totals) {}
 
     public record IssueRow(Feedback feedback, String impact) {}
 
@@ -40,7 +43,7 @@ public class TestingService {
     private final ExecutionRepository executions;
     private final StepResultRepository results;
     private final IssueLinkRepository links;
-    private final LobSignOffRepository signOffs;
+    private final CycleSignOffRepository signOffs;
     private final ScenarioRepository scenarios;
     private final AppUserRepository users;
     private final FeedbackRepository feedbackRepo;
@@ -49,7 +52,7 @@ public class TestingService {
     private final UatHubProperties props;
 
     public TestingService(TestRunRepository runs, ExecutionRepository executions, StepResultRepository results,
-                          IssueLinkRepository links, LobSignOffRepository signOffs, ScenarioRepository scenarios,
+                          IssueLinkRepository links, CycleSignOffRepository signOffs, ScenarioRepository scenarios,
                           AppUserRepository users, FeedbackRepository feedbackRepo, FeedbackService feedbackService,
                           AttachmentStorage storage, UatHubProperties props) {
         this.runs = runs;
@@ -67,12 +70,12 @@ public class TestingService {
 
     // ---------------------------------------------------------------- runs
 
-    public Optional<TestRun> currentRun(Project project) {
-        return runs.findFirstByProjectAndActiveTrueOrderByIdDesc(project);
+    public List<TestRun> runs(UatCycle cycle) {
+        return cycle == null ? List.of() : runs.findByUatCycleOrderByIdDesc(cycle);
     }
 
-    public List<TestRun> runs(Project project) {
-        return runs.findByProjectOrderByIdDesc(project);
+    public List<RunCard> runCards(UatCycle cycle) {
+        return runs(cycle).stream().map(r -> new RunCard(r, totals(executions.findByRun(r)))).toList();
     }
 
     public TestRun loadRun(Long id, Project project) {
@@ -81,22 +84,44 @@ public class TestingService {
         return r;
     }
 
-    /** Starts a new run; it becomes the current one and earlier runs are closed. */
+    /**
+     * Starts a run in a UAT cycle. Other runs in the cycle stay open, so several can run in parallel.
+     * copyMode: "none", "all" (every scenario of copyFrom, same people) or "unfinished" (everything not passed).
+     */
     @Transactional
-    public TestRun createRun(Project project, AppUser by, String name, String build) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("Name the test run, e.g. UAT cycle 3");
-        for (TestRun old : runs.findByProjectOrderByIdDesc(project)) {
-            if (old.isActive()) {
-                old.setActive(false);
-                runs.save(old);
-            }
-        }
+    public TestRun createRun(UatCycle cycle, AppUser by, String name, String build, Long copyFromId, String copyMode) {
+        if (!cycle.isOpen()) throw new IllegalArgumentException(cycle.getName() + " is closed. Reopen it to add runs.");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Name the run, e.g. Run 2 or Marine regression");
         TestRun r = new TestRun();
-        r.setProject(project);
+        r.setProject(cycle.getProject());
+        r.setUatCycle(cycle);
         r.setName(name.trim());
         r.setBuild(blankToNull(build));
         r.setCreatedBy(by);
-        return runs.save(r);
+        r = runs.save(r);
+        if (copyFromId != null && copyMode != null && !"none".equals(copyMode)) {
+            TestRun from = loadRun(copyFromId, cycle.getProject());
+            for (Execution old : executions.findByRun(from)) {
+                if ("unfinished".equals(copyMode) && old.getStatus() == ExecStatus.PASSED) continue;
+                if (!old.getScenario().isActive()) continue;
+                Execution e = new Execution();
+                e.setRun(r);
+                e.setScenario(old.getScenario());
+                e.setAssignee(old.getAssignee() != null && old.getAssignee().isActive() ? old.getAssignee() : null);
+                executions.save(e);
+            }
+        }
+        return r;
+    }
+
+    /** Closing a run stops results being recorded in it; its history stays visible. */
+    @Transactional
+    public void setRunOpen(TestRun run, boolean open) {
+        if (open && run.getUatCycle() != null && !run.getUatCycle().isOpen()) {
+            throw new IllegalArgumentException("Reopen the UAT cycle before reopening its runs");
+        }
+        run.setActive(open);
+        runs.save(run);
     }
 
     // ---------------------------------------------------------------- assignment
@@ -158,10 +183,13 @@ public class TestingService {
 
     // ---------------------------------------------------------------- my queue and execution
 
-    public List<Execution> myQueue(TestRun run, AppUser me) {
-        List<Execution> list = new ArrayList<>(executions.findByRunAndAssignee(run, me));
+    /** Everything assigned to this person in the cycle's open runs. */
+    public List<Execution> myQueue(UatCycle cycle, AppUser me) {
+        if (cycle == null) return List.of();
+        List<Execution> list = new ArrayList<>(executions.findByRunUatCycleAndRunActiveTrueAndAssignee(cycle, me));
         list.sort(Comparator.comparingInt((Execution e) -> QUEUE_ORDER.indexOf(e.getStatus()))
-                .thenComparing(e -> e.getScenario().getCode()));
+                .thenComparing(e -> e.getScenario().getCode())
+                .thenComparing(e -> -e.getRun().getId()));
         return list;
     }
 
@@ -177,7 +205,8 @@ public class TestingService {
 
     public boolean canRecord(Execution e, AppUser me) {
         boolean mine = e.getAssignee() != null && e.getAssignee().getId().equals(me.getId());
-        return e.getRun().isActive() && (mine || me.getRole() == Role.ADMIN);
+        boolean cycleOpen = e.getRun().getUatCycle() == null || e.getRun().getUatCycle().isOpen();
+        return e.getRun().isActive() && cycleOpen && (mine || me.getRole() == Role.ADMIN);
     }
 
     /** Results for the current attempt, keyed by step id. */
@@ -305,7 +334,7 @@ public class TestingService {
                 blankToNull(title) == null ? s.getTitle() + ": step " + step.getStepNo() + " failed" : title.trim(),
                 cut(desc, 4000), step.getExpected(), r.getActual(), s.getModule(), null,
                 s.getLob(), s.getDivision(), FeedbackType.BUG, severity == null ? Severity.MEDIUM : severity);
-        Feedback f = feedbackService.create(e.getRun().getProject(), by, form, files);
+        Feedback f = feedbackService.create(e.getRun().getProject(), e.getRun().getUatCycle(), by, form, files);
         storage.copyToFeedback(storage.list(r), f);
         f.setFoundInBuild(e.getRun().getBuild());
         feedbackRepo.save(f);
@@ -396,20 +425,36 @@ public class TestingService {
         return new Totals(p, f, b, r, n, list.size());
     }
 
-    public List<LobRow> lobRows(TestRun run) {
-        List<Execution> all = executions.findByRun(run);
-        Map<String, List<Execution>> byLob = all.stream().collect(Collectors.groupingBy(
-                e -> e.getScenario().getLob() == null ? "No LOB" : e.getScenario().getLob(), LinkedHashMap::new, Collectors.toList()));
-        Map<String, LobSignOff> signed = new HashMap<>();
-        for (LobSignOff s : signOffs.findByRun(run)) signed.put(s.getLob(), s);
+    /**
+     * The latest result of each scenario across all runs of the cycle: the newest run in which it was
+     * started, otherwise the newest run it is in.
+     */
+    public List<Execution> latestPerScenario(UatCycle cycle) {
+        Map<Long, Execution> best = new LinkedHashMap<>();
+        List<Execution> all = new ArrayList<>(executions.findByRunUatCycle(cycle));
+        all.sort(Comparator.comparing((Execution e) -> -e.getRun().getId()));
+        for (Execution e : all) {
+            Execution cur = best.get(e.getScenario().getId());
+            if (cur == null || (cur.getStatus() == ExecStatus.NOT_STARTED && e.getStatus() != ExecStatus.NOT_STARTED)) {
+                best.put(e.getScenario().getId(), e);
+            }
+        }
+        return new ArrayList<>(best.values());
+    }
 
+    public List<LobRow> lobRows(UatCycle cycle) {
+        List<Execution> latest = latestPerScenario(cycle);
+        Map<String, List<Execution>> byLob = latest.stream().collect(Collectors.groupingBy(
+                e -> lobOf(e), LinkedHashMap::new, Collectors.toList()));
+        Map<String, CycleSignOff> signed = new HashMap<>();
+        for (CycleSignOff s : signOffs.findByUatCycle(cycle)) signed.put(s.getLob(), s);
         List<String> order = new ArrayList<>(props.lobs());
         for (String l : byLob.keySet()) if (!order.contains(l)) order.add(l);
         List<LobRow> rows = new ArrayList<>();
         for (String lob : order) {
             List<Execution> list = byLob.get(lob);
             if (list == null) continue;
-            rows.add(new LobRow(lob, totals(list), signed.get(lob), openIssues(list).size()));
+            rows.add(new LobRow(lob, totals(list), signed.get(lob), openIssues(cycle, lob).size()));
         }
         return rows;
     }
@@ -427,45 +472,58 @@ public class TestingService {
     }
 
     public List<IssueRow> issueRows(TestRun run) {
+        return issueRows(links.findByExecutionRun(run));
+    }
+
+    public List<IssueRow> issueRows(UatCycle cycle) {
+        return issueRows(links.findByExecutionRunUatCycle(cycle));
+    }
+
+    private List<IssueRow> issueRows(List<IssueLink> source) {
         Map<Feedback, List<IssueLink>> byIssue = new LinkedHashMap<>();
-        for (IssueLink l : links.findByExecutionRun(run)) byIssue.computeIfAbsent(l.getFeedback(), k -> new ArrayList<>()).add(l);
+        for (IssueLink l : source) byIssue.computeIfAbsent(l.getFeedback(), k -> new ArrayList<>()).add(l);
         return byIssue.entrySet().stream()
                 .sorted(Comparator.comparing((Map.Entry<Feedback, List<IssueLink>> en) -> en.getKey().getStage() == Stage.CLOSED)
                         .thenComparing(en -> -en.getKey().getId()))
                 .map(en -> new IssueRow(en.getKey(), en.getValue().stream()
-                        .map(l -> l.getExecution().getScenario().getCode() + (l.getStepNo() == null ? "" : " step " + l.getStepNo()))
+                        .map(l -> l.getExecution().getScenario().getCode() + (l.getStepNo() == null ? "" : " step " + l.getStepNo())
+                                + " · " + l.getExecution().getRun().getName())
                         .distinct().collect(Collectors.joining(", "))))
                 .toList();
     }
 
-    private List<Feedback> openIssues(List<Execution> list) {
+    /** Open issues raised from any run of the cycle against scenarios of this LOB. */
+    private List<Feedback> openIssues(UatCycle cycle, String lob) {
         List<Feedback> out = new ArrayList<>();
-        for (Execution e : list) {
-            for (IssueLink l : links.findByExecution(e)) {
-                if (l.getFeedback().getStage() != Stage.CLOSED && !out.contains(l.getFeedback())) out.add(l.getFeedback());
-            }
+        for (IssueLink l : links.findByExecutionRunUatCycle(cycle)) {
+            if (!lob.equals(lobOf(l.getExecution()))) continue;
+            if (l.getFeedback().getStage() != Stage.CLOSED && !out.contains(l.getFeedback())) out.add(l.getFeedback());
         }
         return out;
     }
 
-    /** Business sign-off for one LOB. Open issues at that moment are recorded as accepted exceptions. */
+    private static String lobOf(Execution e) {
+        return e.getScenario().getLob() == null ? "No LOB" : e.getScenario().getLob();
+    }
+
+    /** Business sign-off of one LOB for the whole cycle. Open issues are recorded as accepted exceptions. */
     @Transactional
-    public LobSignOff signOff(TestRun run, AppUser by, String lob, String note) {
+    public CycleSignOff signOff(UatCycle cycle, AppUser by, String lob, String note) {
+        if (!cycle.isOpen()) throw new IllegalArgumentException(cycle.getName() + " is closed");
         if (lob == null || lob.isBlank()) throw new IllegalArgumentException("Choose a line of business");
-        List<Execution> list = executions.findByRun(run).stream()
-                .filter(e -> lob.equals(e.getScenario().getLob() == null ? "No LOB" : e.getScenario().getLob()))
-                .toList();
-        if (list.isEmpty()) throw new IllegalArgumentException("No scenarios for " + lob + " in this run");
+        List<Execution> list = latestPerScenario(cycle).stream().filter(e -> lob.equals(lobOf(e))).toList();
+        if (list.isEmpty()) throw new IllegalArgumentException("No scenarios for " + lob + " in this cycle");
         Totals t = totals(list);
-        List<Feedback> open = openIssues(list);
-        if (t.notRun() + t.retest() > 0 && (note == null || note.isBlank())) {
+        List<Feedback> open = openIssues(cycle, lob);
+        boolean noteMissing = note == null || note.isBlank();
+        if (t.notRun() + t.retest() > 0 && noteMissing) {
             throw new IllegalArgumentException("Some " + lob + " scenarios are not finished. Add a note explaining the sign-off.");
         }
-        if (!open.isEmpty() && (note == null || note.isBlank())) {
+        if (!open.isEmpty() && noteMissing) {
             throw new IllegalArgumentException("There are open issues for " + lob + ". Add a note to accept them as known exceptions.");
         }
-        LobSignOff s = signOffs.findByRunAndLob(run, lob).orElseGet(LobSignOff::new);
-        s.setRun(run);
+        CycleSignOff s = signOffs.findByUatCycleAndLob(cycle, lob).orElseGet(CycleSignOff::new);
+        s.setUatCycle(cycle);
         s.setLob(lob);
         s.setSignedBy(by);
         s.setNote(blankToNull(note));
@@ -476,10 +534,19 @@ public class TestingService {
     // ---------------------------------------------------------------- export
 
     public byte[] export(TestRun run) throws IOException {
-        String[] head = {"Scenario", "Title", "LOB", "Division", "Priority", "Assigned to", "Status", "Attempt",
+        return export(executions.findByRun(run), "Run");
+    }
+
+    /** One row per scenario with its latest result in the cycle. */
+    public byte[] export(UatCycle cycle) throws IOException {
+        return export(latestPerScenario(cycle), "Cycle");
+    }
+
+    private byte[] export(List<Execution> source, String sheetName) throws IOException {
+        String[] head = {"Scenario", "Title", "LOB", "Division", "Priority", "Run", "Build", "Assigned to", "Status", "Attempt",
                 "Steps passed", "Steps failed", "Steps blocked", "Steps", "Issues", "Finished"};
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = wb.createSheet("Test run");
+            Sheet sheet = wb.createSheet(sheetName);
             CellStyle bold = wb.createCellStyle();
             Font font = wb.createFont();
             font.setBold(true);
@@ -490,7 +557,7 @@ public class TestingService {
                 c.setCellValue(head[i]);
                 c.setCellStyle(bold);
             }
-            List<Execution> list = new ArrayList<>(executions.findByRun(run));
+            List<Execution> list = new ArrayList<>(source);
             list.sort(Comparator.comparing(e -> e.getScenario().getCode()));
             int r = 1;
             for (Execution e : list) {
@@ -499,6 +566,7 @@ public class TestingService {
                 String issues = links.findByExecution(e).stream().map(l -> l.getFeedback().getCode()).distinct()
                         .collect(Collectors.joining(", "));
                 Object[] v = {s.getCode(), s.getTitle(), s.getLob(), s.getDivision(), s.getPriority().getLabel(),
+                        e.getRun().getName(), e.getRun().getBuild(),
                         e.getAssignee() == null ? "" : e.getAssignee().getName(), e.getStatus().getLabel(), e.getAttempt(),
                         rs.stream().filter(x -> x.getResult() == StepStatus.PASS).count(),
                         rs.stream().filter(x -> x.getResult() == StepStatus.FAIL).count(),

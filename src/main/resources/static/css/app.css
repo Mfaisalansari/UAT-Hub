@@ -532,4 +532,25 @@ body.solo { min-height: 100vh; display: flex; align-items: center; justify-conte
     .grid-code, .step-editor li { grid-template-columns: minmax(0, 1fr); }
 }
 
+
+/* ---------- UAT cycles ---------- */
+.proj.cyc { margin-top: -14px; border-color: var(--line-3); }
+p.proj { margin: -14px 0 0; padding: 10px 14px; }
+.add-cycle { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 160px 160px auto; gap: 12px; align-items: end; padding: 18px; border-radius: 16px; border: 1px dashed var(--line-3); }
+.linkish.strong { font-weight: 600; font-size: 14px; color: var(--ink); }
+.linkish.strong:hover { color: var(--lime); }
+.edit-cycle { margin-top: 8px; min-width: 220px; }
+.edit-cycle input { height: 38px; }
+.run-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.run-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+.run-card:hover { text-decoration: none; border-color: var(--line-3); }
+.run-card.closed { opacity: .6; }
+.rc-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.run-card .seg-bar.thin { min-width: 0; }
+.new-run { border-style: dashed; background: transparent; }
+.new-run summary { cursor: pointer; }
+.new-run[open] summary { margin-bottom: 12px; }
+@media (max-width: 1024px) { .add-cycle { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 860px) { .add-cycle { grid-template-columns: minmax(0, 1fr); } }
+
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

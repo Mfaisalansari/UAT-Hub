@@ -3,6 +3,7 @@ package com.uathub.web;
 import com.uathub.domain.*;
 import com.uathub.security.CurrentUser;
 import com.uathub.service.AttachmentStorage;
+import com.uathub.service.CycleService;
 import com.uathub.service.FeedbackService;
 import com.uathub.service.ProjectContext;
 import com.uathub.service.TestingService;
@@ -24,22 +25,24 @@ public class ExecController {
     private final TestingService testing;
     private final FeedbackService feedback;
     private final AttachmentStorage storage;
+    private final CycleService cycles;
 
-    public ExecController(ProjectContext ctx, TestingService testing, FeedbackService feedback, AttachmentStorage storage) {
+    public ExecController(ProjectContext ctx, TestingService testing, FeedbackService feedback, AttachmentStorage storage,
+                          CycleService cycles) {
         this.ctx = ctx;
         this.testing = testing;
         this.feedback = feedback;
         this.storage = storage;
+        this.cycles = cycles;
     }
 
     @GetMapping("/my")
     public String mine(@AuthenticationPrincipal CurrentUser me, HttpSession session, Model model) {
         Project project = ctx.current(me, session);
         if (project == null) return "no-project";
-        TestRun run = testing.currentRun(project).orElse(null);
-        model.addAttribute("run", run);
-        if (run != null) {
-            List<Execution> queue = testing.myQueue(run, ctx.user(me));
+        UatCycle cycle = cycles.current(project, session);
+        if (cycle != null) {
+            List<Execution> queue = testing.myQueue(cycle, ctx.user(me));
             model.addAttribute("queue", queue);
             model.addAttribute("totals", testing.totals(queue));
             model.addAttribute("results", queue.stream().collect(java.util.stream.Collectors.toMap(Execution::getId, x -> testing.results(x))));

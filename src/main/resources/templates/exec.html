@@ -37,7 +37,7 @@
 
         <th:block th:if="${cur != null}">
             <p class="mono small"><span class="lime" th:text="'Step ' + ${cur.stepNo} + ' of ' + ${steps.size()}"></span>
-                <span class="muted push-right" th:text="'Run: ' + ${e.run.label}"></span></p>
+                <span class="muted push-right" th:text="(${e.run.uatCycle} != null ? ${e.run.uatCycle.name} + ' · ' : '') + ${e.run.label}"></span></p>
             <h2 class="title-2" th:text="${cur.action}"></h2>
             <div class="panel">
                 <span class="label">Expected result</span>

@@ -15,6 +15,10 @@ public class TestRun {
     @ManyToOne(optional = false)
     private Project project;
 
+    /** The UAT cycle this run belongs to. A cycle can have several runs, open at the same time. */
+    @ManyToOne
+    private UatCycle uatCycle;
+
     @Column(nullable = false)
     private String name;
 
@@ -35,6 +39,8 @@ public class TestRun {
     public Long getId() { return id; }
     public Project getProject() { return project; }
     public void setProject(Project project) { this.project = project; }
+    public UatCycle getUatCycle() { return uatCycle; }
+    public void setUatCycle(UatCycle uatCycle) { this.uatCycle = uatCycle; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getBuild() { return build; }

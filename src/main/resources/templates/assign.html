@@ -7,7 +7,7 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb"><a th:href="@{/runs(id=${run.id})}">← Test run</a><span th:text="${run.label}"></span></p>
+                <p class="crumb"><a th:href="@{/runs/{id}(id=${run.id})}">← Run</a><span th:text="(${run.uatCycle} != null ? ${run.uatCycle.name} + ' · ' : '') + ${run.label}"></span></p>
                 <h1 class="title">Assign scenarios</h1>
             </div>
             <form method="get" class="actions" th:action="@{/runs/{id}/assign(id=${run.id})}">

@@ -28,11 +28,14 @@ public class ScenarioController {
     private final ProjectContext ctx;
     private final ScenarioRepository repo;
     private final ScenarioService service;
+    private final com.uathub.config.UatHubProperties props;
 
-    public ScenarioController(ProjectContext ctx, ScenarioRepository repo, ScenarioService service) {
+    public ScenarioController(ProjectContext ctx, ScenarioRepository repo, ScenarioService service,
+                              com.uathub.config.UatHubProperties props) {
         this.ctx = ctx;
         this.repo = repo;
         this.service = service;
+        this.props = props;
     }
 
     @GetMapping
@@ -101,6 +104,15 @@ public class ScenarioController {
         service.setActive(s, active);
         ra.addFlashAttribute("ok", s.getCode() + (active ? " restored." : " archived. It stays in past runs but can't be assigned."));
         return "redirect:/scenarios" + (active ? "?id=" + id : "");
+    }
+
+    @GetMapping("/template")
+    public org.springframework.http.ResponseEntity<byte[]> template() throws IOException {
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        org.springframework.http.ContentDisposition.attachment().filename("UAT-scenarios-template.xlsx").build().toString())
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(service.template(props.lobs(), props.divisions()));
     }
 
     @PostMapping("/import")

@@ -7,10 +7,10 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb" th:text="${run != null} ? ${run.label} + ' · assigned to you' : ${project.name}"></p>
+                <p class="crumb" th:text="${cycle != null} ? ${cycle.name} + ' · assigned to you in open runs' : ${project.name}"></p>
                 <h1 class="title">My scenarios</h1>
             </div>
-            <div class="stats" th:if="${run != null}">
+            <div class="stats" th:if="${cycle != null}">
                 <span><b th:text="${totals.total()}"></b><small>assigned</small></span>
                 <span class="c-pass"><b th:text="${totals.passed()}"></b><small>passed</small></span>
                 <span class="c-fail"><b th:text="${totals.failed()}"></b><small>failed</small></span>
@@ -20,12 +20,12 @@
 
         <div th:replace="~{fragments :: flash}"></div>
 
-        <div class="empty" th:if="${run == null}">
-            <h2>No test run has started yet</h2>
-            <p>When QA starts a run and assigns scenarios to you, they appear here.</p>
+        <div class="empty" th:if="${cycle == null}">
+            <h2>No UAT cycle yet</h2>
+            <p>When QA sets up a cycle and assigns scenarios to you, they appear here.</p>
         </div>
 
-        <th:block th:if="${run != null}">
+        <th:block th:if="${cycle != null}">
             <section class="retest-banner" th:each="x : ${queue}" th:if="${x.status.name() == 'RETEST'}">
                 <span class="xs x-retest">Re-test</span>
                 <span class="rb-text">
@@ -41,12 +41,13 @@
 
             <div class="table-wrap" th:unless="${queue.isEmpty()}">
                 <table class="table">
-                    <thead><tr><th>ID</th><th>Scenario</th><th>LOB / division</th><th>Priority</th><th>Steps</th><th>Issues</th><th></th></tr></thead>
+                    <thead><tr><th>ID</th><th>Scenario</th><th>Run</th><th>LOB / division</th><th>Priority</th><th>Steps</th><th>Issues</th><th></th></tr></thead>
                     <tbody>
                     <tr th:each="x : ${queue}">
                         <td class="mono id"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.code}"></a></td>
                         <td class="title-cell"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.title}"></a>
                             <small th:text="${x.scenario.module}"></small></td>
+                        <td class="small"><span th:text="${x.run.name}"></span><small class="block mono muted" th:if="${x.run.build != null}" th:text="${x.run.build}"></small></td>
                         <td class="muted-2" th:text="${x.scenario.lobDivision}"></td>
                         <td><span class="pri" th:classappend="'p-' + ${x.scenario.priority.css}" th:text="${x.scenario.priority.label}"></span></td>
                         <td>
@@ -71,7 +72,7 @@
                 </table>
             </div>
             <div class="empty" th:if="${queue.isEmpty()}">
-                <h2>Nothing assigned to you in this run</h2>
+                <h2>Nothing assigned to you in this cycle's open runs</h2>
                 <p>Ask your QA lead to assign you scenarios. You can still <a th:href="@{/feedback/new}" th:if="${me.canLog()}">log general feedback</a>.</p>
             </div>
         </th:block>

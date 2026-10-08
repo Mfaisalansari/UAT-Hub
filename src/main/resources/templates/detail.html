@@ -9,7 +9,8 @@
             <p class="crumb"><a th:href="@{/}">← Register</a>
                 <span class="mono lime" th:text="${f.code}"></span>
                 <span th:text="${f.lobDivision}"></span>
-                <span th:if="${!f.where.isEmpty()}" th:text="${f.where}"></span></p>
+                <span th:if="${!f.where.isEmpty()}" th:text="${f.where}"></span>
+                <span th:if="${f.cycle != null}" th:text="${f.cycle}"></span></p>
             <h1 class="title-2" th:text="${f.title}"></h1>
             <div class="tags">
                 <span th:replace="~{fragments :: type(${f})}"></span>

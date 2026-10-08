@@ -25,14 +25,24 @@
             <option th:each="p : ${myProjects}" th:value="${p.id}" th:text="${p.name}"
                     th:selected="${p.id == project.id}"></option>
         </select>
-        <small th:text="${project.currentCycle != null ? project.currentCycle : 'No UAT cycle set'}"></small>
     </form>
+
+    <form th:if="${project != null and myCycles != null and !myCycles.isEmpty()}" class="proj cyc" method="post" th:action="@{/cycle/select}">
+        <label for="cycle-select">UAT cycle</label>
+        <select id="cycle-select" name="id" data-autosubmit>
+            <option th:each="c : ${myCycles}" th:value="${c.id}" th:text="${c.name} + (${c.open} ? '' : ' (closed)')"
+                    th:selected="${cycle != null and c.id == cycle.id}"></option>
+        </select>
+        <small th:text="${cycle != null and !cycle.dates.isEmpty()} ? ${cycle.dates} : (${cycle != null and !cycle.open} ? 'Closed, view only' : 'Open')"></small>
+    </form>
+    <p th:if="${project != null and (myCycles == null or myCycles.isEmpty())}" class="small muted proj">No UAT cycle yet</p>
 
     <div class="nav">
         <div class="nav-group first">Testing</div>
         <a th:href="@{/my}" th:classappend="${active == 'my'} ? 'on'"><i></i>My scenarios</a>
-        <a th:href="@{/runs}" th:classappend="${active == 'runs'} ? 'on'"><i></i>Test run</a>
+        <a th:href="@{/runs}" th:classappend="${active == 'runs'} ? 'on'"><i></i>Cycle &amp; runs</a>
         <a th:if="${me.canManageTests()}" th:href="@{/scenarios}" th:classappend="${active == 'scenarios'} ? 'on'"><i></i>Scenario library</a>
+        <a th:if="${me.canManageTests()}" th:href="@{/cycles}" th:classappend="${active == 'cycles'} ? 'on'"><i></i>UAT cycles</a>
         <div class="nav-group">Feedback</div>
         <a th:href="@{/}" th:classappend="${active == 'register'} ? 'on'">
             <i></i>Register<span class="n" th:text="${navTotal}"></span></a>

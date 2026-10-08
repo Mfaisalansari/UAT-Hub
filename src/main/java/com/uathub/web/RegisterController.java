@@ -3,6 +3,7 @@ package com.uathub.web;
 import com.uathub.domain.*;
 import com.uathub.repo.FeedbackRepository;
 import com.uathub.security.CurrentUser;
+import com.uathub.service.CycleService;
 import com.uathub.service.ExcelService;
 import com.uathub.service.ProjectContext;
 import jakarta.servlet.http.HttpSession;
@@ -35,11 +36,13 @@ public class RegisterController {
     private final ProjectContext ctx;
     private final FeedbackRepository repo;
     private final ExcelService excel;
+    private final CycleService cycles;
 
-    public RegisterController(ProjectContext ctx, FeedbackRepository repo, ExcelService excel) {
+    public RegisterController(ProjectContext ctx, FeedbackRepository repo, ExcelService excel, CycleService cycles) {
         this.ctx = ctx;
         this.repo = repo;
         this.excel = excel;
+        this.cycles = cycles;
     }
 
     @GetMapping("/")
@@ -48,13 +51,17 @@ public class RegisterController {
                            @RequestParam(required = false) String lob,
                            @RequestParam(required = false) String division,
                            @RequestParam(required = false) FeedbackType type,
-                           @RequestParam(required = false) Stage stage) {
+                           @RequestParam(required = false) Stage stage,
+                           @RequestParam(required = false) boolean all) {
         Project project = ctx.current(me, session);
         if (project == null) return "no-project";
 
-        List<Feedback> all = repo.findByProjectOrderByIdDesc(project);
+        UatCycle cycle = cycles.current(project, session);
+        boolean everyCycle = all || cycle == null;
+        List<Feedback> items = everyCycle ? repo.findByProjectOrderByIdDesc(project)
+                : repo.findByProjectAndUatCycleOrderByIdDesc(project, cycle);
         String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
-        List<Feedback> rows = all.stream()
+        List<Feedback> rows = items.stream()
                 .filter(f -> needle.isEmpty() || matches(f, needle))
                 .filter(f -> blank(lob) || lob.equals(f.getLob()))
                 .filter(f -> blank(division) || division.equals(f.getDivision()))
@@ -63,7 +70,7 @@ public class RegisterController {
                 .toList();
 
         model.addAttribute("counts", STRIP.stream()
-                .map(s -> new StageCount(s, all.stream().filter(f -> f.getStage() == s).count())).toList());
+                .map(s -> new StageCount(s, items.stream().filter(f -> f.getStage() == s).count())).toList());
         model.addAttribute("rows", rows);
         model.addAttribute("types", FeedbackType.values());
         model.addAttribute("q", q);
@@ -71,18 +78,22 @@ public class RegisterController {
         model.addAttribute("fDivision", division);
         model.addAttribute("fType", type);
         model.addAttribute("fStage", stage);
+        model.addAttribute("allCycles", everyCycle);
         model.addAttribute("filtered", !needle.isEmpty() || !blank(lob) || !blank(division) || type != null || stage != null);
         return "register";
     }
 
     @GetMapping("/export")
-    public ResponseEntity<byte[]> export(@AuthenticationPrincipal CurrentUser me, HttpSession session) throws IOException {
+    public ResponseEntity<byte[]> export(@AuthenticationPrincipal CurrentUser me, HttpSession session,
+                                         @RequestParam(required = false) boolean all) throws IOException {
         Project project = ctx.require(me, session);
-        String name = project.getName().replaceAll("[^A-Za-z0-9]+", "-") + "-UAT-" + LocalDate.now() + ".xlsx";
+        UatCycle cycle = all ? null : cycles.current(project, session);
+        String name = (project.getName() + "-" + (cycle == null ? "all-cycles" : cycle.getName()))
+                .replaceAll("[^A-Za-z0-9]+", "-") + "-" + LocalDate.now() + ".xlsx";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(name).build().toString())
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(excel.export(project));
+                .body(excel.export(project, cycle));
     }
 
     @PostMapping("/import")
@@ -90,8 +101,9 @@ public class RegisterController {
                               @RequestParam("file") MultipartFile file, RedirectAttributes ra) throws IOException {
         Project project = ctx.require(me, session);
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Choose an Excel file to import");
-        int n = excel.importSheet(project, ctx.user(me), file.getInputStream());
-        ra.addFlashAttribute("ok", "Imported " + n + " item(s) into " + project.getName() + ". They are waiting for triage.");
+        UatCycle cycle = cycles.requireOpen(project, session);
+        int n = excel.importSheet(project, cycle, ctx.user(me), file.getInputStream());
+        ra.addFlashAttribute("ok", "Imported " + n + " item(s) into " + cycle.getName() + ". They are waiting for triage.");
         return "redirect:/";
     }
 

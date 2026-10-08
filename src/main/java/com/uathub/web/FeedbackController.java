@@ -32,9 +32,12 @@ public class FeedbackController {
     private final AttachmentStorage storage;
     private final AttachmentRepository attachments;
     private final com.uathub.service.TestingService testing;
+    private final com.uathub.service.CycleService cycles;
 
     public FeedbackController(ProjectContext ctx, FeedbackService service, AttachmentStorage storage,
-                              AttachmentRepository attachments, com.uathub.service.TestingService testing) {
+                              AttachmentRepository attachments, com.uathub.service.TestingService testing,
+                              com.uathub.service.CycleService cycles) {
+        this.cycles = cycles;
         this.ctx = ctx;
         this.service = service;
         this.storage = storage;
@@ -58,7 +61,7 @@ public class FeedbackController {
                          @RequestParam(value = "next", required = false) String next,
                          RedirectAttributes ra) {
         Project project = ctx.require(me, session);
-        Feedback f = service.create(project, ctx.user(me), form, files);
+        Feedback f = service.create(project, cycles.requireOpen(project, session), ctx.user(me), form, files);
         // Carry LOB and division over to the next entry.
         session.setAttribute(LAST_LOB, form.lob());
         session.setAttribute(LAST_DIVISION, form.division());

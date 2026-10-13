@@ -30,10 +30,12 @@ public class RunController {
     private final ScenarioRepository scenarios;
     private final CycleService cycles;
     private final com.uathub.service.ReportService reports;
+    private final com.uathub.service.ScenarioService scenarioService;
 
     public RunController(ProjectContext ctx, TestingService testing, ScenarioRepository scenarios, CycleService cycles,
-                         com.uathub.service.ReportService reports) {
+                         com.uathub.service.ReportService reports, com.uathub.service.ScenarioService scenarioService) {
         this.reports = reports;
+        this.scenarioService = scenarioService;
         this.ctx = ctx;
         this.testing = testing;
         this.scenarios = scenarios;
@@ -48,7 +50,7 @@ public class RunController {
         UatCycle cycle = cycles.current(project, session);
         if (cycle != null) {
             model.addAttribute("runCards", testing.runCards(cycle));
-            model.addAttribute("totals", testing.totals(testing.latestPerScenario(cycle)));
+            model.addAttribute("totals", testing.totals(testing.latestPerCase(cycle)));
             model.addAttribute("lobRows", testing.lobRows(cycle));
             model.addAttribute("issues", testing.issueRows(cycle));
         }
@@ -66,7 +68,7 @@ public class RunController {
             return "redirect:/runs/" + id;
         }
         model.addAttribute("run", run);
-        model.addAttribute("totals", testing.totals(testing.executionsByScenario(run).values()));
+        model.addAttribute("totals", testing.totals(testing.executions(run)));
         model.addAttribute("testers", testing.testerRows(run));
         model.addAttribute("issues", testing.issueRows(run));
         model.addAttribute("fixCandidates", testing.fixCandidates(run));
@@ -96,47 +98,66 @@ public class RunController {
 
     @GetMapping("/{id}/assign")
     public String assignForm(@AuthenticationPrincipal CurrentUser me, HttpSession session, @PathVariable Long id,
-                             @RequestParam(required = false) String lob, Model model) {
+                             @RequestParam(required = false) String lob,
+                             @RequestParam(required = false) String channel, Model model) {
         Project project = ctx.require(me, session);
         TestRun run = testing.loadRun(id, project);
-        List<Scenario> list = scenarios.findByProjectAndActiveTrueOrderByCodeAsc(project).stream()
+        List<Scenario> list = scenarioService.assignable(run.getUatCycle()).stream()
                 .filter(s -> lob == null || lob.isBlank() || lob.equals(s.getLob()))
                 .toList();
+        List<TestingService.CaseRow> rows = testing.caseRows(run, list).stream()
+                .filter(r -> channel == null || channel.isBlank()
+                        || (r.dataSet() != null && channel.equals(r.dataSet().getChannel())))
+                .toList();
         model.addAttribute("run", run);
-        model.addAttribute("rows", list);
-        model.addAttribute("current", testing.executionsByScenario(run));
+        model.addAttribute("rows", rows);
+        model.addAttribute("channels", list.stream().flatMap(s -> s.getDataSets().stream())
+                .map(d -> d.getChannel()).filter(c -> c != null && !c.isBlank()).distinct().sorted().toList());
         model.addAttribute("people", testing.assignable(project));
         model.addAttribute("fLob", lob);
+        model.addAttribute("fChannel", channel);
         return "assign";
     }
 
     /**
-     * Each row posts a_{scenarioId} = userId (blank = not in the run). The bulk bar posts
-     * bulkUser plus sel = scenario ids, which overrides the rows it covers.
+     * Each row posts a_{scenarioId}_{dataSetId} = userId (blank = not in the run; dataSetId 0 when the
+     * scenario has no data sets). The bulk bar posts bulkUser plus sel = "{scenarioId}_{dataSetId}" values.
      */
     @PostMapping("/{id}/assign")
     public String assign(@AuthenticationPrincipal CurrentUser me, HttpSession session, @PathVariable Long id,
                          HttpServletRequest req, RedirectAttributes ra) {
         TestRun run = testing.loadRun(id, ctx.require(me, session));
-        Map<Long, Long> wanted = new LinkedHashMap<>();
+        Map<TestingService.CaseKey, Long> wanted = new LinkedHashMap<>();
         for (Map.Entry<String, String[]> p : req.getParameterMap().entrySet()) {
             if (!p.getKey().startsWith("a_")) continue;
-            Long scenarioId = parse(p.getKey().substring(2));
-            if (scenarioId != null) wanted.put(scenarioId, parse(p.getValue()[0]));
+            TestingService.CaseKey key = caseKey(p.getKey().substring(2));
+            if (key != null) wanted.put(key, parse(p.getValue()[0]));
         }
         String bulk = req.getParameter("bulkUser");
         String[] sel = req.getParameterValues("sel");
         if (bulk != null && !bulk.isBlank() && sel != null && req.getParameter("applyBulk") != null) {
             Long userId = "none".equals(bulk) ? null : parse(bulk);
             for (String s : sel) {
-                Long sid = parse(s);
-                if (sid != null) wanted.put(sid, userId);
+                TestingService.CaseKey key = caseKey(s);
+                if (key != null) wanted.put(key, userId);
             }
         }
         int n = testing.assign(run, wanted, ctx.user(me));
         ra.addFlashAttribute("ok", n == 0 ? "No changes." : "Updated " + n + " assignment(s).");
-        String lob = req.getParameter("lob");
-        return "redirect:/runs/" + id + "/assign" + (lob == null || lob.isBlank() ? "" : "?lob=" + java.net.URLEncoder.encode(lob, java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder q = new StringBuilder();
+        for (String f : List.of("lob", "channel")) {
+            String v = req.getParameter(f);
+            if (v != null && !v.isBlank()) q.append(q.isEmpty() ? "?" : "&").append(f).append("=")
+                    .append(java.net.URLEncoder.encode(v, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return "redirect:/runs/" + id + "/assign" + q;
+    }
+
+    private static TestingService.CaseKey caseKey(String s) {
+        String[] parts = s.split("_");
+        if (parts.length != 2) return null;
+        Long a = parse(parts[0]), b = parse(parts[1]);
+        return a == null || b == null ? null : new TestingService.CaseKey(a, b);
     }
 
     @PostMapping("/{id}/build")

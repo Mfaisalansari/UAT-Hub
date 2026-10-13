@@ -12,6 +12,7 @@ public record UatHubProperties(
         int cookieDays,
         List<String> lobs,
         List<String> divisions,
+        List<String> channels,
         Jira jira,
         Notify notifications,
         Ai ai) {
@@ -30,6 +31,10 @@ public record UatHubProperties(
         public boolean anthropic() {
             return "anthropic".equalsIgnoreCase(provider == null ? "" : provider.trim());
         }
+    }
+
+    public List<String> channelsSafe() {
+        return channels == null ? List.of() : channels;
     }
 
     public Notify notifySafe() {

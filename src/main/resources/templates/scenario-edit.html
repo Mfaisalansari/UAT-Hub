@@ -7,7 +7,8 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb"><a th:href="@{/scenarios}">← Scenario library</a></p>
+                <p class="crumb"><a th:href="@{/scenarios}">← Scenario library</a>
+                    <span th:text="${s != null and s.uatCycle != null} ? ${s.uatCycle.name} : (${cycle != null} ? ${cycle.name} : '')"></span></p>
                 <h1 class="title" th:text="${s == null} ? 'New scenario' : 'Edit ' + ${s.code}"></h1>
             </div>
         </header>
@@ -39,7 +40,7 @@
             <div class="grid2">
                 <div class="field"><label for="pre">Preconditions</label>
                     <textarea id="pre" name="preconditions" rows="3" th:text="${s?.preconditions}"></textarea></div>
-                <div class="field"><label for="td">Test data</label>
+                <div class="field"><label for="td">Common test data <small class="muted">(applies to every data set)</small></label>
                     <textarea id="td" name="testData" rows="3" th:text="${s?.testData}"></textarea></div>
             </div>
 
@@ -66,8 +67,37 @@
                 <button type="button" class="btn ghost small-btn" data-add-step>+ Add step</button>
             </fieldset>
 
+            <fieldset class="field">
+                <legend>Test data sets <small class="muted">(optional)</small></legend>
+                <p class="small muted-2">Add one per channel, user or set of data this scenario must be tested with. Each becomes its own
+                    test case in a run, so it can go to a different tester. Leave empty to run the scenario once.</p>
+                <datalist id="channel-list"><option th:each="c : ${channels}" th:value="${c}"></option></datalist>
+                <div class="ds-editor" data-ds-list>
+                    <th:block th:if="${s != null}">
+                    <div class="ds-row" th:each="d : ${s.dataSets}">
+                        <input name="ds_name" maxlength="120" aria-label="Data set name" placeholder="Name, e.g. Broker portal – UK broker" th:value="${d.name}">
+                        <input name="ds_channel" list="channel-list" aria-label="Channel" placeholder="Channel" th:value="${d.channel}">
+                        <input name="ds_persona" aria-label="User or role to log in as" placeholder="Log in as (user or role)" th:value="${d.persona}">
+                        <textarea name="ds_data" rows="2" aria-label="Test data" placeholder="Test data: policy, broker, quote refs…" th:text="${d.testData}"></textarea>
+                        <button type="button" class="linkish danger" data-remove-ds>Remove</button>
+                    </div>
+                    </th:block>
+                </div>
+                <template id="ds-template">
+                    <div class="ds-row">
+                        <input name="ds_name" maxlength="120" aria-label="Data set name" placeholder="Name, e.g. Broker portal – UK broker">
+                        <input name="ds_channel" list="channel-list" aria-label="Channel" placeholder="Channel">
+                        <input name="ds_persona" aria-label="User or role to log in as" placeholder="Log in as (user or role)">
+                        <textarea name="ds_data" rows="2" aria-label="Test data" placeholder="Test data: policy, broker, quote refs…"></textarea>
+                        <button type="button" class="linkish danger" data-remove-ds>Remove</button>
+                    </div>
+                </template>
+                <button type="button" class="btn ghost small-btn" data-add-ds>+ Add data set</button>
+                <p class="small muted-2">Don't put passwords here; name the user or role and keep credentials where your team normally keeps them.</p>
+            </fieldset>
+
             <footer class="form-foot">
-                <span class="muted small">Empty step rows are ignored. Steps that already have test results can be reworded but not removed.</span>
+                <span class="muted small">Empty rows are ignored. Steps and data sets that are already in a test run can be reworded but not removed.</span>
                 <a class="btn ghost" th:href="@{/scenarios}">Cancel</a>
                 <button class="btn primary" type="submit">Save scenario</button>
             </footer>

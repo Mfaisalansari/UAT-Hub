@@ -175,6 +175,24 @@
         });
     });
 
+    // Scenario editor: add and remove test data set rows.
+    var dsList = document.querySelector('[data-ds-list]');
+    var dsAdd = document.querySelector('[data-add-ds]');
+    var dsTemplate = document.getElementById('ds-template');
+    if (dsList && dsAdd && dsTemplate) {
+        var wireDs = function (row) {
+            var b = row.querySelector('[data-remove-ds]');
+            if (b) b.addEventListener('click', function () { row.remove(); });
+        };
+        Array.prototype.forEach.call(dsList.children, wireDs);
+        dsAdd.addEventListener('click', function () {
+            var row = dsTemplate.content.firstElementChild.cloneNode(true);
+            dsList.appendChild(row);
+            wireDs(row);
+            row.querySelector('input').focus();
+        });
+    }
+
     // Business review: target release only for decisions that go to Jira.
     var release = document.querySelector('[data-release]');
     if (release) {

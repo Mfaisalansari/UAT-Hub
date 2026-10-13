@@ -3,6 +3,8 @@ package com.uathub.service;
 import com.uathub.config.UatHubProperties;
 import com.uathub.domain.*;
 import com.uathub.repo.AppUserRepository;
+import com.uathub.repo.ExecutionRepository;
+import com.uathub.repo.ScenarioRepository;
 import com.uathub.repo.FeedbackRepository;
 import com.uathub.repo.ProjectRepository;
 import com.uathub.repo.TestRunRepository;
@@ -32,10 +34,15 @@ public class Bootstrap implements ApplicationRunner {
     private final FeedbackRepository feedback;
     private final TestRunRepository runs;
     private final CycleService cycles;
+    private final ScenarioRepository scenarios;
+    private final ExecutionRepository executions;
     private final UatHubProperties props;
 
     public Bootstrap(AppUserRepository users, ProjectRepository projects, FeedbackRepository feedback,
-                     TestRunRepository runs, CycleService cycles, UatHubProperties props) {
+                     TestRunRepository runs, CycleService cycles, ScenarioRepository scenarios,
+                     ExecutionRepository executions, UatHubProperties props) {
+        this.scenarios = scenarios;
+        this.executions = executions;
         this.users = users;
         this.projects = projects;
         this.feedback = feedback;
@@ -63,7 +70,10 @@ public class Bootstrap implements ApplicationRunner {
             log.info("First start: created starter project, first UAT cycle and Admin user.");
         }
 
-        for (Project p : projects.findAll()) moveIntoCycle(p);
+        for (Project p : projects.findAll()) {
+            moveIntoCycle(p);
+            scenariosIntoCycle(p);
+        }
 
         List<AppUser> admins = users.findByRoleAndActiveTrue(Role.ADMIN);
         StringBuilder sb = new StringBuilder("\n\n================ UAT Hub admin access ================\n");
@@ -73,6 +83,28 @@ public class Bootstrap implements ApplicationRunner {
         sb.append("  Open the link in your browser. Keep it private: it works like a password.\n");
         sb.append("======================================================\n");
         log.info(sb.toString());
+    }
+
+    /**
+     * Scenarios from before libraries were per cycle: each goes to the newest cycle that ran it, otherwise to
+     * the newest open cycle. Runs in older cycles keep pointing at the same scenario, so history is unchanged.
+     */
+    private void scenariosIntoCycle(Project p) {
+        List<Scenario> loose = scenarios.findByProjectAndUatCycleIsNull(p);
+        if (loose.isEmpty()) return;
+        List<UatCycle> all = cycles.cycles(p);
+        UatCycle fallback = all.stream().filter(UatCycle::isOpen).findFirst().orElse(all.isEmpty() ? null : all.get(0));
+        for (Scenario s : loose) {
+            UatCycle target = executions.findByScenario(s).stream()
+                    .map(e -> e.getRun().getUatCycle())
+                    .filter(java.util.Objects::nonNull)
+                    .max(java.util.Comparator.comparing(UatCycle::getId))
+                    .orElse(fallback);
+            if (target == null) continue;
+            s.setUatCycle(target);
+            scenarios.save(s);
+        }
+        log.info("Placed {} scenario(s) of {} into UAT cycles.", loose.size(), p.getName());
     }
 
     /** Runs and feedback created before UAT cycles existed go into the project's old "current cycle". */

@@ -14,7 +14,7 @@
                     <span class="muted-title" th:if="${run.build != null}" th:text="'· ' + ${run.build}"></span></h1>
             </div>
             <div class="actions" th:if="${me.canManageTests()}">
-                <a class="btn ghost" th:href="@{/runs/{id}/assign(id=${run.id})}">Assign scenarios</a>
+                <a class="btn ghost" th:href="@{/runs/{id}/assign(id=${run.id})}">Assign test cases</a>
                 <a class="btn ghost" th:href="@{/runs/{id}/export(id=${run.id})}">Export run</a>
                 <form method="post" th:action="@{/runs/{id}/open(id=${run.id})}" class="inline"
                       th:attr="data-confirm=${run.active} ? 'Close ' + ${run.name} + '? Testers can no longer record results in it.' : null">
@@ -46,7 +46,7 @@
 
         <div class="empty" th:if="${totals.total() == 0}">
             <h2>No scenarios in this run yet</h2>
-            <p th:if="${me.canManageTests()}"><a th:href="@{/runs/{id}/assign(id=${run.id})}">Assign scenarios</a> to testers and business users.</p>
+            <p th:if="${me.canManageTests()}"><a th:href="@{/runs/{id}/assign(id=${run.id})}">Assign test cases</a> to testers and business users.</p>
         </div>
 
         <div class="split runs-split" th:if="${totals.total() > 0}">

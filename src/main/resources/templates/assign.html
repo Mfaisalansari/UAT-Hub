@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
-<head th:replace="~{fragments :: head('Assign scenarios')}"></head>
+<head th:replace="~{fragments :: head('Assign test cases')}"></head>
 <body>
 <div class="shell">
     <nav th:replace="~{fragments :: sidebar('runs')}"></nav>
@@ -8,7 +8,7 @@
         <header class="page-head">
             <div>
                 <p class="crumb"><a th:href="@{/runs/{id}(id=${run.id})}">← Run</a><span th:text="(${run.uatCycle} != null ? ${run.uatCycle.name} + ' · ' : '') + ${run.label}"></span></p>
-                <h1 class="title">Assign scenarios</h1>
+                <h1 class="title">Assign test cases</h1>
             </div>
             <form method="get" class="actions" th:action="@{/runs/{id}/assign(id=${run.id})}">
                 <label class="sr" for="a-lob">Line of business</label>
@@ -16,20 +16,28 @@
                     <option value="">All LOBs</option>
                     <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}" th:selected="${l == fLob}"></option>
                 </select>
+                <th:block th:unless="${channels.isEmpty()}">
+                    <label class="sr" for="a-ch">Channel</label>
+                    <select id="a-ch" name="channel" data-autosubmit>
+                        <option value="">All channels</option>
+                        <option th:each="c : ${channels}" th:value="${c}" th:text="${c}" th:selected="${c == fChannel}"></option>
+                    </select>
+                </th:block>
             </form>
         </header>
 
         <div th:replace="~{fragments :: flash}"></div>
 
         <div class="empty" th:if="${rows.isEmpty()}">
-            <h2>No scenarios to assign</h2>
-            <p>Add or import scenarios in the <a th:href="@{/scenarios}">scenario library</a> first.</p>
+            <h2 th:text="${fLob != null and !fLob.isEmpty() or fChannel != null and !fChannel.isEmpty()} ? 'Nothing matches these filters' : 'No scenarios in this cycle yet'"></h2>
+            <p>Scenarios come from this cycle's <a th:href="@{/scenarios}">scenario library</a>: add, import, or copy them from an earlier cycle.</p>
         </div>
 
         <form method="post" th:action="@{/runs/{id}/assign(id=${run.id})}" class="stack" th:unless="${rows.isEmpty()}">
             <input type="hidden" name="lob" th:value="${fLob}">
+            <input type="hidden" name="channel" th:value="${fChannel}">
             <div class="bulk-bar">
-                <span class="small muted-2">Assign the ticked scenarios to</span>
+                <span class="small muted-2"><b class="mono" data-count>0</b> ticked. Assign them to</span>
                 <label class="sr" for="bulk">Person</label>
                 <select id="bulk" name="bulkUser">
                     <option value="">Choose a person</option>
@@ -43,19 +51,26 @@
                 <table class="table">
                     <thead><tr>
                         <th class="check"><input type="checkbox" data-select-all="sel" aria-label="Tick all"></th>
-                        <th>ID</th><th>Scenario</th><th>LOB / division</th><th>Steps</th><th>Status</th><th>Assigned to</th>
+                        <th>ID</th><th>Scenario</th><th>Data set</th><th>LOB / division</th><th>Steps</th><th>Status</th><th>Assigned to</th>
                     </tr></thead>
                     <tbody>
-                    <tr th:each="s : ${rows}" th:with="x=${current.get(s.id)}">
-                        <td class="check"><input type="checkbox" name="sel" th:value="${s.id}" th:attr="aria-label='Tick ' + ${s.code}"></td>
+                    <tr th:each="c : ${rows}" th:with="s=${c.scenario()}, d=${c.dataSet()}, x=${c.execution()}"
+                        th:classappend="${!c.first()} ? 'case-cont'">
+                        <td class="check"><input type="checkbox" name="sel" th:value="${c.param().substring(2)}"
+                                                 th:attr="aria-label='Tick ' + ${s.code} + (${d != null} ? ' ' + ${d.name} : '')"></td>
                         <td class="mono id" th:text="${s.code}"></td>
                         <td class="title-cell"><span th:text="${s.title}"></span><small th:text="${s.module}"></small></td>
+                        <td class="ds-cell">
+                            <th:block th:if="${d != null}"><b th:text="${d.name}"></b>
+                                <small class="block muted-2" th:text="(${d.channel} ?: '') + (${d.persona} != null ? ' · ' + ${d.persona} : '')"></small></th:block>
+                            <span th:if="${d == null}" class="muted">—</span>
+                        </td>
                         <td class="muted-2" th:text="${s.lobDivision}"></td>
                         <td class="mono" th:text="${s.steps.size()}"></td>
                         <td><th:block th:if="${x != null}"><span th:replace="~{fragments :: exec(${x})}"></span></th:block><span th:if="${x == null}" class="muted small">Not in run</span></td>
                         <td>
-                            <label class="sr" th:for="'a_' + ${s.id}" th:text="'Assignee for ' + ${s.code}"></label>
-                            <select th:id="'a_' + ${s.id}" th:name="'a_' + ${s.id}" class="mini-select">
+                            <label class="sr" th:for="${c.param()}" th:text="'Assignee for ' + ${s.code} + (${d != null} ? ' ' + ${d.name} : '')"></label>
+                            <select th:id="${c.param()}" th:name="${c.param()}" class="mini-select">
                                 <option value="">— not in run</option>
                                 <option th:each="p : ${people}" th:value="${p.id}" th:text="${p.name}"
                                         th:selected="${x != null and x.assignee != null and x.assignee.id == p.id}"></option>
@@ -65,7 +80,8 @@
                     </tbody>
                 </table>
             </div>
-            <p class="small muted-2">Removing a scenario someone has started keeps its results and issues; it just becomes unassigned.</p>
+            <p class="small muted-2">Each test data set is its own test case, so one scenario can go to several testers. Removing a case someone
+                has started keeps its results and issues; it just becomes unassigned.</p>
         </form>
     </main>
 </div>

@@ -4,9 +4,9 @@ import jakarta.persistence.*;
 
 import java.time.Instant;
 
-/** A scenario assigned to a person within a test run. */
+/** One test case (a scenario, or one of its data sets) assigned to a person within a test run. */
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"run_id", "scenario_id"}))
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"run_id", "scenario_id", "data_set_id"}))
 public class Execution {
 
     @Id
@@ -18,6 +18,10 @@ public class Execution {
 
     @ManyToOne(optional = false)
     private Scenario scenario;
+
+    /** Which data set this case runs with; null when the scenario has none. */
+    @ManyToOne
+    private ScenarioDataSet dataSet;
 
     @ManyToOne
     private AppUser assignee;
@@ -40,10 +44,22 @@ public class Execution {
 
     public boolean isRetest() { return attempt > 1; }
 
+    /** "SC-014" or "SC-014 · Broker portal". */
+    public String getCaseCode() {
+        return dataSet == null ? scenario.getCode() : scenario.getCode() + " · " + dataSet.getName();
+    }
+
+    /** Key that identifies the test case across runs of a cycle. */
+    public String getCaseKey() {
+        return scenario.getId() + ":" + (dataSet == null ? 0 : dataSet.getId());
+    }
+
     public Long getId() { return id; }
     public TestRun getRun() { return run; }
     public void setRun(TestRun run) { this.run = run; }
     public Scenario getScenario() { return scenario; }
+    public ScenarioDataSet getDataSet() { return dataSet; }
+    public void setDataSet(ScenarioDataSet dataSet) { this.dataSet = dataSet; }
     public void setScenario(Scenario scenario) { this.scenario = scenario; }
     public AppUser getAssignee() { return assignee; }
     public void setAssignee(AppUser assignee) { this.assignee = assignee; }

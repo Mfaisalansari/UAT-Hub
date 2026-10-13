@@ -273,6 +273,7 @@ details.card[open] > summary { margin-bottom: 14px; }
 .table th { text-align: left; font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--muted); padding: 13px 16px; background: var(--raise); white-space: nowrap; }
 .table td { padding: 14px 16px; border-top: 1px solid var(--row-line); vertical-align: middle; }
 .table tbody tr:hover { background: var(--row-hover); }
+.table td.id { white-space: nowrap; }
 .table .id a { color: var(--lime); font-size: 13px; }
 .table .check { width: 44px; }
 .title-cell { min-width: 240px; }
@@ -745,5 +746,30 @@ p.proj { margin: -14px 0 0; padding: 10px 14px; }
 .ai-hit a { color: var(--lilac); }
 .ai-hit .linkish { align-self: flex-start; margin-top: 4px; }
 .paper-ai { margin: 0; }
+
+
+/* ---------- Scenario library per cycle, test data sets ---------- */
+.copy-panel { padding: 14px 18px; border-radius: 14px; border: 1px dashed var(--tint-line); background: var(--tint); }
+.copy-panel summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.copy-panel[open] summary { margin-bottom: 12px; }
+.copy-form { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 8px; }
+.ds-list { display: flex; flex-direction: column; gap: 8px; }
+.ds-list .label { margin-bottom: 0; }
+.ds-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font-size: 13px; }
+.ds-editor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.ds-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr) auto; gap: 8px; align-items: start; }
+.ds-row input { height: 40px; }
+.ds-row button { padding-top: 10px; }
+.ds-cell b { font-weight: 600; }
+.case-cont td { border-top-style: dashed; }
+.case-cont td.id, .case-cont td.title-cell span, .case-cont td.title-cell small { color: var(--faint); }
+.ds-box { padding: 14px; border-radius: 12px; background: var(--tint); border: 1px solid var(--tint-line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ds-box .label { margin-bottom: 0; color: var(--lilac); }
+.ds-box b { font-size: 15px; }
+.ds-box dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; }
+.ds-box dt { color: var(--muted); }
+.ds-box dd { margin: 0; }
+.ds-tag { color: var(--lilac) !important; }
+@media (max-width: 1024px) { .ds-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .copy-form { grid-template-columns: minmax(0, 1fr); } }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

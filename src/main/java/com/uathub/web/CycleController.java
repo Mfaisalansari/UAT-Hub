@@ -29,8 +29,11 @@ public class CycleController {
     private final CycleService cycles;
     private final TestRunRepository runs;
     private final FeedbackRepository feedback;
+    private final com.uathub.repo.ScenarioRepository scenarios;
 
-    public CycleController(ProjectContext ctx, CycleService cycles, TestRunRepository runs, FeedbackRepository feedback) {
+    public CycleController(ProjectContext ctx, CycleService cycles, TestRunRepository runs, FeedbackRepository feedback,
+                           com.uathub.repo.ScenarioRepository scenarios) {
+        this.scenarios = scenarios;
         this.ctx = ctx;
         this.cycles = cycles;
         this.runs = runs;
@@ -44,13 +47,16 @@ public class CycleController {
         List<UatCycle> all = cycles.cycles(project);
         Map<Long, Long> runCount = new HashMap<>();
         Map<Long, Long> feedbackCount = new HashMap<>();
+        Map<Long, Long> scenarioCount = new HashMap<>();
         for (UatCycle c : all) {
             runCount.put(c.getId(), runs.countByUatCycle(c));
             feedbackCount.put(c.getId(), feedback.countByUatCycle(c));
+            scenarioCount.put(c.getId(), scenarios.countByUatCycle(c));
         }
         model.addAttribute("allCycles", all);
         model.addAttribute("runCount", runCount);
         model.addAttribute("feedbackCount", feedbackCount);
+        model.addAttribute("scenarioCount", scenarioCount);
         return "cycles";
     }
 
@@ -64,8 +70,8 @@ public class CycleController {
         Project project = ctx.require(me, session);
         UatCycle c = cycles.save(project, null, name, releaseName, startDate, endDate);
         cycles.select(project, session, c.getId());
-        ra.addFlashAttribute("ok", "Created " + c.getName() + " and switched to it. Start its first test run.");
-        return "redirect:/runs";
+        ra.addFlashAttribute("ok", "Created " + c.getName() + " and switched to it. Add its scenarios, or reuse them from an earlier cycle.");
+        return "redirect:/scenarios";
     }
 
     @PostMapping("/{id}")

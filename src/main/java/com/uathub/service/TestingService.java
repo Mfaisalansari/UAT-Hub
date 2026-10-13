@@ -111,6 +111,7 @@ public class TestingService {
                 Execution e = new Execution();
                 e.setRun(r);
                 e.setScenario(old.getScenario());
+                e.setDataSet(old.getDataSet());
                 e.setAssignee(old.getAssignee() != null && old.getAssignee().isActive() ? old.getAssignee() : null);
                 executions.save(e);
                 if (e.getAssignee() != null) copied.merge(e.getAssignee(), 1, Integer::sum);
@@ -140,10 +141,47 @@ public class TestingService {
                 .toList();
     }
 
-    public Map<Long, Execution> executionsByScenario(TestRun run) {
-        Map<Long, Execution> m = new HashMap<>();
-        for (Execution e : executions.findByRun(run)) m.put(e.getScenario().getId(), e);
+    /** A test case in a run: a scenario, or one of its data sets. dataSetId 0 = the scenario has none. */
+    public record CaseKey(long scenarioId, long dataSetId) {
+        public static CaseKey of(Scenario s, ScenarioDataSet d) {
+            return new CaseKey(s.getId(), d == null ? 0 : d.getId());
+        }
+
+        public String param() {
+            return "a_" + scenarioId + "_" + dataSetId;
+        }
+    }
+
+    /** One assignable row on the assign page. */
+    public record CaseRow(Scenario scenario, ScenarioDataSet dataSet, Execution execution) {
+        public String param() {
+            return CaseKey.of(scenario, dataSet).param();
+        }
+
+        public boolean first() {
+            return dataSet == null || dataSet.getPosition() == 1;
+        }
+    }
+
+    public Map<CaseKey, Execution> executionsByCase(TestRun run) {
+        Map<CaseKey, Execution> m = new HashMap<>();
+        for (Execution e : executions.findByRun(run)) m.put(CaseKey.of(e.getScenario(), e.getDataSet()), e);
         return m;
+    }
+
+    public List<Execution> executions(TestRun run) {
+        return executions.findByRun(run);
+    }
+
+    /** Every test case of the given scenarios, with this run's execution where one exists. */
+    public List<CaseRow> caseRows(TestRun run, List<Scenario> list) {
+        Map<CaseKey, Execution> current = executionsByCase(run);
+        List<CaseRow> rows = new ArrayList<>();
+        for (Scenario s : list) {
+            if (s.getDataSets().isEmpty()) rows.add(new CaseRow(s, null, current.get(CaseKey.of(s, null))));
+            for (ScenarioDataSet d : s.getDataSets()) rows.add(new CaseRow(s, d, current.get(CaseKey.of(s, d))));
+        }
+        return rows;
     }
 
     /**
@@ -151,11 +189,11 @@ public class TestingService {
      * A scenario already being worked on keeps its history; it is only unassigned, never deleted.
      */
     @Transactional
-    public int assign(TestRun run, Map<Long, Long> wanted, AppUser by) {
-        Map<Long, Execution> current = executionsByScenario(run);
+    public int assign(TestRun run, Map<CaseKey, Long> wanted, AppUser by) {
+        Map<CaseKey, Execution> current = executionsByCase(run);
         Map<AppUser, Integer> newWork = new LinkedHashMap<>();
         int changed = 0;
-        for (Map.Entry<Long, Long> w : wanted.entrySet()) {
+        for (Map.Entry<CaseKey, Long> w : wanted.entrySet()) {
             Execution e = current.get(w.getKey());
             Long userId = w.getValue();
             if (userId == null) {
@@ -172,12 +210,20 @@ public class TestingService {
                     .filter(u -> u.canAccess(run.getProject()))
                     .orElseThrow(() -> new IllegalArgumentException("That person can't be assigned to this project"));
             if (e == null) {
-                Scenario s = scenarios.findById(w.getKey())
+                Scenario s = scenarios.findById(w.getKey().scenarioId())
                         .filter(x -> x.getProject().getId().equals(run.getProject().getId()))
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                ScenarioDataSet ds = null;
+                if (w.getKey().dataSetId() != 0) {
+                    ds = s.getDataSets().stream().filter(d -> d.getId() == w.getKey().dataSetId()).findFirst()
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                } else if (!s.getDataSets().isEmpty()) {
+                    throw new IllegalArgumentException(s.getCode() + " has test data sets: assign each data set");
+                }
                 e = new Execution();
                 e.setRun(run);
                 e.setScenario(s);
+                e.setDataSet(ds);
             } else if (e.getAssignee() != null && e.getAssignee().getId().equals(userId)) {
                 continue;
             }
@@ -206,7 +252,7 @@ public class TestingService {
         if (cycle == null) return List.of();
         List<Execution> list = new ArrayList<>(executions.findByRunUatCycleAndRunActiveTrueAndAssignee(cycle, me));
         list.sort(Comparator.comparingInt((Execution e) -> QUEUE_ORDER.indexOf(e.getStatus()))
-                .thenComparing(e -> e.getScenario().getCode())
+                .thenComparing(Execution::getCaseCode)
                 .thenComparing(e -> -e.getRun().getId()));
         return list;
     }
@@ -304,18 +350,18 @@ public class TestingService {
                     f.setStage(Stage.CLOSED);
                     feedbackRepo.save(f);
                     feedbackService.log(f, by, "Verified fixed by re-test",
-                            e.getScenario().getCode() + " in " + f.getFixedInBuild());
+                            e.getCaseCode() + " in " + f.getFixedInBuild());
                     verified++;
                 } else if (at == StepStatus.FAIL || at == StepStatus.BLOCKED) {
                     String build = f.getFixedInBuild();
                     f.setFixedInBuild(null);
                     feedbackRepo.save(f);
-                    feedbackService.log(f, by, "Re-test failed, issue reopened", e.getScenario().getCode() + " in " + build);
+                    feedbackService.log(f, by, "Re-test failed, issue reopened", e.getCaseCode() + " in " + build);
                     reopened++;
                 }
             }
         }
-        StringBuilder msg = new StringBuilder(e.getScenario().getCode() + " finished: " + e.getStatus().getLabel() + ".");
+        StringBuilder msg = new StringBuilder(e.getCaseCode() + " finished: " + e.getStatus().getLabel() + ".");
         if (verified > 0) msg.append(" ").append(verified).append(" issue(s) verified and closed.");
         if (reopened > 0) msg.append(" ").append(reopened).append(" issue(s) reopened.");
         return msg.toString();
@@ -344,10 +390,15 @@ public class TestingService {
             throw new IllegalArgumentException("Mark the step as Fail or Blocked before raising an issue");
         }
         Scenario s = e.getScenario();
-        String desc = "Found while running " + s.getCode() + " \"" + s.getTitle() + "\", step " + step.getStepNo()
+        ScenarioDataSet ds = e.getDataSet();
+        String desc = "Found while running " + e.getCaseCode() + " \"" + s.getTitle() + "\", step " + step.getStepNo()
                 + ": " + step.getAction()
                 + (s.getPreconditions() == null ? "" : "\n\nPreconditions: " + s.getPreconditions())
-                + (s.getTestData() == null ? "" : "\nTest data: " + s.getTestData());
+                + (s.getTestData() == null ? "" : "\nTest data: " + s.getTestData())
+                + (ds == null ? "" : "\nData set: " + ds.getName()
+                        + (ds.getChannel() == null ? "" : "\nChannel: " + ds.getChannel())
+                        + (ds.getPersona() == null ? "" : "\nLogged in as: " + ds.getPersona())
+                        + (ds.getTestData() == null ? "" : "\nData set test data: " + ds.getTestData()));
         FeedbackForm form = new FeedbackForm(
                 blankToNull(title) == null ? s.getTitle() + ": step " + step.getStepNo() + " failed" : title.trim(),
                 cut(desc, 4000), step.getExpected(), r.getActual(), s.getModule(), null,
@@ -358,8 +409,8 @@ public class TestingService {
         feedbackRepo.save(f);
         links.save(new IssueLink(f, e, step.getStepNo()));
         notifier.send(f.getProject(), notifier.people(f.getProject(), Role.QA_LEAD), by,
-                f.getCode() + " raised from " + s.getCode() + " (" + f.getSeverity().getLabel() + ")",
-                f.getTitle() + "\n\nFound by " + by.getName() + " in " + s.getCode() + " step " + step.getStepNo()
+                f.getCode() + " raised from " + e.getCaseCode() + " (" + f.getSeverity().getLabel() + ")",
+                f.getTitle() + "\n\nFound by " + by.getName() + " in " + e.getCaseCode() + " step " + step.getStepNo()
                         + (e.getRun().getBuild() == null ? "" : " on build " + e.getRun().getBuild()) + ".\nExpected: "
                         + (step.getExpected() == null ? "-" : step.getExpected()) + "\nActual: " + (r.getActual() == null ? "-" : r.getActual()),
                 "/feedback/" + f.getId(), true);
@@ -379,7 +430,7 @@ public class TestingService {
         }
         if (!links.existsByFeedbackAndExecution(f, e)) {
             links.save(new IssueLink(f, e, step.getStepNo()));
-            feedbackService.log(f, by, "Also seen in test run", e.getScenario().getCode() + " step " + step.getStepNo());
+            feedbackService.log(f, by, "Also seen in test run", e.getCaseCode() + " step " + step.getStepNo());
         }
         return f;
     }
@@ -431,7 +482,7 @@ public class TestingService {
             e.setFinishedAt(null);
             executions.save(e);
             if (e.getAssignee() != null) {
-                retestFor.computeIfAbsent(e.getAssignee(), k -> new ArrayList<>()).add(e.getScenario().getCode() + "  " + e.getScenario().getTitle());
+                retestFor.computeIfAbsent(e.getAssignee(), k -> new ArrayList<>()).add(e.getCaseCode() + "  " + e.getScenario().getTitle());
             }
         }
         for (Map.Entry<AppUser, List<String>> r : retestFor.entrySet()) {
@@ -458,24 +509,24 @@ public class TestingService {
     }
 
     /**
-     * The latest result of each scenario across all runs of the cycle: the newest run in which it was
+     * The latest result of each test case (scenario, or scenario + data set) across all runs of the cycle: the newest run in which it was
      * started, otherwise the newest run it is in.
      */
-    public List<Execution> latestPerScenario(UatCycle cycle) {
-        Map<Long, Execution> best = new LinkedHashMap<>();
+    public List<Execution> latestPerCase(UatCycle cycle) {
+        Map<String, Execution> best = new LinkedHashMap<>();
         List<Execution> all = new ArrayList<>(executions.findByRunUatCycle(cycle));
         all.sort(Comparator.comparing((Execution e) -> -e.getRun().getId()));
         for (Execution e : all) {
-            Execution cur = best.get(e.getScenario().getId());
+            Execution cur = best.get(e.getCaseKey());
             if (cur == null || (cur.getStatus() == ExecStatus.NOT_STARTED && e.getStatus() != ExecStatus.NOT_STARTED)) {
-                best.put(e.getScenario().getId(), e);
+                best.put(e.getCaseKey(), e);
             }
         }
         return new ArrayList<>(best.values());
     }
 
     public List<LobRow> lobRows(UatCycle cycle) {
-        List<Execution> latest = latestPerScenario(cycle);
+        List<Execution> latest = latestPerCase(cycle);
         Map<String, List<Execution>> byLob = latest.stream().collect(Collectors.groupingBy(
                 e -> lobOf(e), LinkedHashMap::new, Collectors.toList()));
         Map<String, CycleSignOff> signed = new HashMap<>();
@@ -518,7 +569,7 @@ public class TestingService {
                 .sorted(Comparator.comparing((Map.Entry<Feedback, List<IssueLink>> en) -> en.getKey().getStage() == Stage.CLOSED)
                         .thenComparing(en -> -en.getKey().getId()))
                 .map(en -> new IssueRow(en.getKey(), en.getValue().stream()
-                        .map(l -> l.getExecution().getScenario().getCode() + (l.getStepNo() == null ? "" : " step " + l.getStepNo())
+                        .map(l -> l.getExecution().getCaseCode() + (l.getStepNo() == null ? "" : " step " + l.getStepNo())
                                 + " · " + l.getExecution().getRun().getName())
                         .distinct().collect(Collectors.joining(", "))))
                 .toList();
@@ -543,7 +594,7 @@ public class TestingService {
     public CycleSignOff signOff(UatCycle cycle, AppUser by, String lob, String note) {
         if (!cycle.isOpen()) throw new IllegalArgumentException(cycle.getName() + " is closed");
         if (lob == null || lob.isBlank()) throw new IllegalArgumentException("Choose a line of business");
-        List<Execution> list = latestPerScenario(cycle).stream().filter(e -> lob.equals(lobOf(e))).toList();
+        List<Execution> list = latestPerCase(cycle).stream().filter(e -> lob.equals(lobOf(e))).toList();
         if (list.isEmpty()) throw new IllegalArgumentException("No scenarios for " + lob + " in this cycle");
         Totals t = totals(list);
         List<Feedback> open = openIssues(cycle, lob);
@@ -571,7 +622,7 @@ public class TestingService {
 
     /** One row per scenario with its latest result in the cycle. */
     public byte[] export(UatCycle cycle) throws IOException {
-        return export(latestPerScenario(cycle), "Cycle");
+        return export(latestPerCase(cycle), "Cycle");
     }
 
     private byte[] export(List<Execution> source, String sheetName) throws IOException {
@@ -584,7 +635,7 @@ public class TestingService {
 
     /** Adds a sheet with one row per execution; used by the run export, cycle export and exit report. */
     public void scenarioSheet(Workbook wb, List<Execution> source, String sheetName) {
-        String[] head = {"Scenario", "Title", "LOB", "Division", "Priority", "Run", "Build", "Assigned to", "Status", "Attempt",
+        String[] head = {"Scenario", "Data set", "Channel", "User / role", "Title", "LOB", "Division", "Priority", "Run", "Build", "Assigned to", "Status", "Attempt",
                 "Steps passed", "Steps failed", "Steps blocked", "Steps", "Issues", "Finished"};
         {
             Sheet sheet = wb.createSheet(sheetName);
@@ -599,14 +650,16 @@ public class TestingService {
                 c.setCellStyle(bold);
             }
             List<Execution> list = new ArrayList<>(source);
-            list.sort(Comparator.comparing(e -> e.getScenario().getCode()));
+            list.sort(Comparator.comparing(Execution::getCaseCode));
             int r = 1;
             for (Execution e : list) {
                 Collection<StepResult> rs = results(e).values();
                 Scenario s = e.getScenario();
                 String issues = links.findByExecution(e).stream().map(l -> l.getFeedback().getCode()).distinct()
                         .collect(Collectors.joining(", "));
-                Object[] v = {s.getCode(), s.getTitle(), s.getLob(), s.getDivision(), s.getPriority().getLabel(),
+                ScenarioDataSet ds = e.getDataSet();
+                Object[] v = {s.getCode(), ds == null ? "" : ds.getName(), ds == null ? "" : ds.getChannel(),
+                        ds == null ? "" : ds.getPersona(), s.getTitle(), s.getLob(), s.getDivision(), s.getPriority().getLabel(),
                         e.getRun().getName(), e.getRun().getBuild(),
                         e.getAssignee() == null ? "" : e.getAssignee().getName(), e.getStatus().getLabel(), e.getAttempt(),
                         rs.stream().filter(x -> x.getResult() == StepStatus.PASS).count(),

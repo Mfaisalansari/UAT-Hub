@@ -24,7 +24,7 @@
         <p class="verdict" th:classappend="${r.complete()} ? 'done' : ''" th:text="${r.verdict()}"></p>
 
         <section class="facts" aria-label="Summary">
-            <div><span>Scenarios in scope</span><b th:text="${r.totals().total()}"></b></div>
+            <div><span>Test cases in scope</span><b th:text="${r.totals().total()}"></b></div>
             <div><span>Pass rate of executed</span><b th:text="${r.passRate() != null} ? ${r.passRate()} + '%' : '–'"></b></div>
             <div><span>Passed</span><b class="c-pass" th:text="${r.totals().passed()}"></b></div>
             <div><span>Failed</span><b class="c-fail" th:text="${r.totals().failed()}"></b></div>
@@ -33,14 +33,14 @@
             <div><span>Feedback items</span><b th:text="${r.feedbackTotal()}"></b></div>
             <div><span>Still open</span><b th:classappend="${!r.openItems().isEmpty()} ? 'c-fail' : ''" th:text="${r.openItems().size()}"></b></div>
         </section>
-        <p class="small muted-2">Each scenario counts once, with its result in the newest run where it was started.</p>
+        <p class="small muted-2">A test case is a scenario, or one of its test data sets. Each counts once, with its result in the newest run where it was started.</p>
 
         <section class="report-section">
             <h2 class="h2">By line of business</h2>
             <p class="small muted-2" th:if="${r.lobs().isEmpty()}">No scenarios were assigned in this cycle.</p>
             <div class="table-wrap" th:unless="${r.lobs().isEmpty()}">
                 <table class="table compact">
-                    <thead><tr><th>Line of business</th><th>Scenarios</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Not run</th><th>Pass rate</th><th>Open issues</th><th>Business sign-off</th></tr></thead>
+                    <thead><tr><th>Line of business</th><th>Test cases</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Not run</th><th>Pass rate</th><th>Open issues</th><th>Business sign-off</th></tr></thead>
                     <tbody>
                     <tr th:each="l : ${r.lobs()}">
                         <td><b th:text="${l.lob()}"></b></td>
@@ -128,7 +128,7 @@
             <h2 class="h2">Runs</h2>
             <div class="table-wrap">
                 <table class="table compact">
-                    <thead><tr><th>Run</th><th>Build</th><th>Status</th><th>Scenarios</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Done</th></tr></thead>
+                    <thead><tr><th>Run</th><th>Build</th><th>Status</th><th>Test cases</th><th>Passed</th><th>Failed</th><th>Blocked</th><th>Done</th></tr></thead>
                     <tbody>
                     <tr th:each="c : ${r.runs()}">
                         <td><b th:text="${c.run().name}"></b></td>
@@ -149,7 +149,7 @@
             <h2 class="h2">Compared with other cycles</h2>
             <div class="table-wrap">
                 <table class="table compact">
-                    <thead><tr><th>UAT cycle</th><th>Scenarios</th><th>Executed</th><th>Pass rate</th><th>Feedback</th><th>Bugs</th><th>Open critical/high</th><th>LOBs signed off</th></tr></thead>
+                    <thead><tr><th>UAT cycle</th><th>Test cases</th><th>Executed</th><th>Pass rate</th><th>Feedback</th><th>Bugs</th><th>Open critical/high</th><th>LOBs signed off</th></tr></thead>
                     <tbody>
                     <tr th:each="c : ${r.comparison()}" th:classappend="${c.cycle().id == r.cycle().id} ? 'row-on'">
                         <td><b th:text="${c.cycle().name}"></b></td>

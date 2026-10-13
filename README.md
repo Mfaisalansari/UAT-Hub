@@ -105,13 +105,22 @@ Data created before cycles existed is moved into a cycle on start-up (named afte
 
 ## Testing with scenarios
 
-1. **Scenario library** (QA lead): import scenarios from Excel or write them in the app. **Download template**
-   gives a sample sheet with three example scenarios and a *How to fill* tab. Each scenario has an ID
-   (e.g. SC-014), title, LOB, division, module, priority, preconditions, test data and numbered steps with
-   expected results.
+1. **Scenario library** (QA lead): each UAT cycle has its own library, so the list only shows what is being
+   tested in the cycle picked in the sidebar. Import scenarios from Excel or write them in the app.
+   **Download template** gives a sample workbook with *Scenarios*, *Test data* and *How to fill* tabs. Each
+   scenario has an ID (e.g. SC-014), title, LOB, division, module, priority, preconditions, common test data
+   and numbered steps with expected results.
+   - **Reuse scenarios from another cycle** copies scenarios (optionally one LOB) from an earlier cycle with
+     their steps and data sets. The copy is independent: editing it does not change the earlier cycle.
+     Scenarios whose ID already exists in this cycle are skipped.
+   - **Test data sets**: when one scenario is run on several channels or by several user roles, add a data set
+     for each (name, channel, "log in as" user/role, test data). Each data set becomes its own **test case**
+     (e.g. `SC-014 · Broker portal`) that is assigned, executed, raised from and reported separately.
+     A scenario without data sets is a single test case.
 2. **Cycle & runs** (QA lead): start one or more runs in the cycle, e.g. "Run 1" on build "4.2.1", or parallel
    runs such as "Marine regression". A new run can start with the scenarios of an earlier run: all of them, or
-   only those not passed. Then **Assign scenarios** to testers and business users (per row, or in bulk).
+   only those not passed. Then **Assign test cases** to testers and business users (per row, or in bulk). Filter by LOB or channel to
+   hand, say, every Broker portal case to the broker users.
 3. **My scenarios** (tester or business user): everything assigned to you in the cycle's open runs. Work through
    each scenario step by step, marking Pass, Fail, Blocked or N/A, with the actual result and pasted screenshots.
 4. **Raise issue** on a failed or blocked step creates a feedback item pre-filled with the scenario, step,
@@ -146,7 +155,19 @@ scenario-level columns. Headers are matched by name, in any order:
 | Action (required) | Test step, Step description |
 | Expected | Expected result |
 
-Importing a Scenario ID that already exists updates it. Steps that already have results can be reworded but
+An optional **Test data** sheet adds data sets, one row per data set:
+
+| Column | Also accepted |
+|---|---|
+| Scenario ID | ID, Test ID |
+| Data set | Name, Variant |
+| Channel | Portal, Application |
+| User / role | Log in as, Persona, Role |
+| Test data | Data, Values |
+
+Importing a Scenario ID that already exists in the cycle updates it; if the file has a Test data sheet, that
+scenario's data sets are replaced by the ones in the file, matched by order. A data set that is already in a
+test run can be renamed but not removed; the import stops with a message saying which one. Steps that already have results can be reworded but
 not removed; archive the scenario and create a new one instead.
 
 ## Workflow
@@ -250,7 +271,14 @@ Severity / Priority, Expected, Actual. Imported items start at *Logged*, ready f
 
 ## Reference lists
 
-LOBs and divisions are set in `application.properties` (`uathub.lobs`, `uathub.divisions`).
+LOBs, divisions and channels are set in `application.properties` (`uathub.lobs`, `uathub.divisions`,
+`uathub.channels`). Channels are suggestions only; a data set can name any channel.
+
+### Upgrading from an earlier version
+
+On first start, scenarios that were shared by the whole project are moved into the newest cycle that ran them
+(or the newest open cycle). Results, issues and sign-offs are untouched. Use **Reuse scenarios from another
+cycle** to bring them into later cycles.
 
 ## Project layout
 

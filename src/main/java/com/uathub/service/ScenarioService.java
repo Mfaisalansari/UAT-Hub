@@ -1,9 +1,7 @@
 package com.uathub.service;
 
-import com.uathub.domain.Priority;
-import com.uathub.domain.Project;
-import com.uathub.domain.Scenario;
-import com.uathub.domain.ScenarioStep;
+import com.uathub.domain.*;
+import com.uathub.repo.ExecutionRepository;
 import com.uathub.repo.ScenarioRepository;
 import com.uathub.repo.StepResultRepository;
 import org.apache.poi.ss.usermodel.*;
@@ -22,12 +20,26 @@ import java.util.*;
 @Service
 public class ScenarioService {
 
-    /** Everything the scenario editor posts. */
+    /**
+     * Everything the scenario editor posts. dataSets rows are {name, channel, user/role, test data};
+     * null means "leave the data sets as they are" (used by imports without a Test data sheet).
+     */
     public record ScenarioInput(String code, String title, String lob, String division, String module,
                                 Priority priority, String preconditions, String testData,
-                                List<String[]> steps) {}
+                                List<String[]> steps, List<String[]> dataSets) {}
 
-    public record ImportResult(int created, int updated) {}
+    public record ImportResult(int created, int updated, int dataSets) {}
+
+    public record CopyResult(int copied, int skipped) {}
+
+    private static final Map<String, String> DATA_ALIASES = new HashMap<>();
+    static {
+        for (String n : List.of("scenario id", "scenario", "id", "test id", "tc id", "scenario no")) DATA_ALIASES.put(n, "code");
+        for (String n : List.of("data set", "dataset", "data set name", "name", "variant")) DATA_ALIASES.put(n, "name");
+        for (String n : List.of("channel")) DATA_ALIASES.put(n, "channel");
+        for (String n : List.of("user / role", "user/role", "user", "role", "persona", "login as", "log in as")) DATA_ALIASES.put(n, "persona");
+        for (String n : List.of("test data", "data", "test data details")) DATA_ALIASES.put(n, "testData");
+    }
 
     private static final Map<String, String> ALIASES = new HashMap<>();
     static {
@@ -50,14 +62,33 @@ public class ScenarioService {
 
     private final ScenarioRepository repo;
     private final StepResultRepository stepResults;
+    private final ExecutionRepository executions;
 
-    public ScenarioService(ScenarioRepository repo, StepResultRepository stepResults) {
+    public ScenarioService(ScenarioRepository repo, StepResultRepository stepResults, ExecutionRepository executions) {
         this.repo = repo;
         this.stepResults = stepResults;
+        this.executions = executions;
     }
 
     private boolean removable(ScenarioStep step) {
         return step.getId() == null || !stepResults.existsByStep(step);
+    }
+
+    private boolean removable(ScenarioDataSet d) {
+        return d.getId() == null || !executions.existsByDataSet(d);
+    }
+
+    public List<Scenario> library(UatCycle cycle) {
+        return cycle == null ? List.of() : repo.findByUatCycleOrderByCodeAsc(cycle);
+    }
+
+    public List<Scenario> assignable(UatCycle cycle) {
+        return cycle == null ? List.of() : repo.findByUatCycleAndActiveTrueOrderByCodeAsc(cycle);
+    }
+
+    private static void requireOpen(UatCycle cycle) {
+        if (cycle == null) throw new IllegalArgumentException("Create a UAT cycle first");
+        if (!cycle.isOpen()) throw new IllegalArgumentException(cycle.getName() + " is closed, so its scenarios can't be changed");
     }
 
     public Scenario load(Long id, Project project) {
@@ -66,26 +97,71 @@ public class ScenarioService {
         return s;
     }
 
+    /** New scenarios go into the given cycle; an existing one stays in its own cycle. */
     @Transactional
-    public Scenario save(Project project, Long id, ScenarioInput in) {
+    public Scenario save(Project project, UatCycle cycle, Long id, ScenarioInput in) {
         if (in.title() == null || in.title().isBlank()) throw new IllegalArgumentException("Add a scenario title");
         if (in.steps() == null || in.steps().isEmpty()) throw new IllegalArgumentException("Add at least one step");
         Scenario s = id == null ? new Scenario() : load(id, project);
+        if (s.getUatCycle() == null) s.setUatCycle(cycle);
+        requireOpen(s.getUatCycle());
         s.setProject(project);
         String code = blank(in.code()) ? (s.getCode() != null ? s.getCode() : nextCode(project)) : in.code().trim().toUpperCase();
-        repo.findByProjectAndCodeIgnoreCase(project, code)
+        repo.findByUatCycleAndCodeIgnoreCase(s.getUatCycle(), code)
                 .filter(other -> !other.getId().equals(s.getId()))
-                .ifPresent(other -> { throw new IllegalArgumentException(code + " is already used by another scenario"); });
+                .ifPresent(other -> { throw new IllegalArgumentException(code + " is already used by another scenario in this cycle"); });
         s.setCode(code);
         apply(s, in);
         s.replaceSteps(in.steps(), this::removable);
+        if (in.dataSets() != null) s.replaceDataSets(checkDataSets(in.dataSets()), this::removable);
         return repo.save(s);
     }
 
     @Transactional
     public void setActive(Scenario s, boolean active) {
+        requireOpen(s.getUatCycle());
         s.setActive(active);
         repo.save(s);
+    }
+
+    /**
+     * Copies scenarios from another cycle of the same project into this one, with their steps and data sets.
+     * Scenarios whose ID already exists here are skipped, so copying twice is harmless.
+     */
+    @Transactional
+    public CopyResult copyFrom(UatCycle target, UatCycle source, String lob) {
+        requireOpen(target);
+        if (source.getId().equals(target.getId())) throw new IllegalArgumentException("Choose a different cycle to copy from");
+        if (!source.getProject().getId().equals(target.getProject().getId())) throw new IllegalArgumentException("That cycle is in another project");
+        int copied = 0, skipped = 0;
+        for (Scenario from : repo.findByUatCycleAndActiveTrueOrderByCodeAsc(source)) {
+            if (lob != null && !lob.isBlank() && !lob.equals(from.getLob())) continue;
+            if (repo.findByUatCycleAndCodeIgnoreCase(target, from.getCode()).isPresent()) { skipped++; continue; }
+            Scenario s = new Scenario();
+            s.setProject(target.getProject());
+            s.setUatCycle(target);
+            s.setCode(from.getCode());
+            s.setCopiedFrom(from.getCode() + " (" + source.getName() + ")");
+            List<String[]> steps = from.getSteps().stream().map(st -> new String[]{st.getAction(), st.getExpected()}).toList();
+            List<String[]> sets = from.getDataSets().stream()
+                    .map(d -> new String[]{d.getName(), d.getChannel(), d.getPersona(), d.getTestData()}).toList();
+            apply(s, new ScenarioInput(null, from.getTitle(), from.getLob(), from.getDivision(), from.getModule(),
+                    from.getPriority(), from.getPreconditions(), from.getTestData(), steps, sets));
+            s.replaceSteps(steps, this::removable);
+            s.replaceDataSets(sets, this::removable);
+            repo.save(s);
+            copied++;
+        }
+        return new CopyResult(copied, skipped);
+    }
+
+    private static List<String[]> checkDataSets(List<String[]> rows) {
+        Set<String> names = new HashSet<>();
+        for (String[] r : rows) {
+            if (r[0] == null || r[0].isBlank()) throw new IllegalArgumentException("Give every test data set a name");
+            if (!names.add(r[0].trim().toLowerCase())) throw new IllegalArgumentException("Two data sets are called \"" + r[0].trim() + "\". Names must differ.");
+        }
+        return rows;
     }
 
     /**
@@ -94,10 +170,13 @@ public class ScenarioService {
      * An existing scenario with the same ID is updated and its steps replaced.
      */
     @Transactional
-    public ImportResult importSheet(Project project, InputStream in) throws IOException {
+    public ImportResult importSheet(Project project, UatCycle cycle, InputStream in) throws IOException {
+        requireOpen(cycle);
         try (Workbook wb = WorkbookFactory.create(in)) {
             Sheet sheet = wb.getSheetAt(0);
             DataFormatter fmt = new DataFormatter();
+            Map<String, List<String[]>> dataSets = readDataSets(wb, fmt);
+            int dataSetCount = 0;
             Row header = sheet.getRow(sheet.getFirstRowNum());
             if (header == null) throw new IllegalArgumentException("The sheet is empty");
             Map<String, Integer> cols = new HashMap<>();
@@ -139,19 +218,60 @@ public class ScenarioService {
                 for (Row r : rows) steps.add(new String[]{cut(get(r, cols, "action", fmt), 1000), cut(get(r, cols, "expected", fmt), 1000)});
 
                 Optional<Scenario> existing = code == null ? Optional.empty()
-                        : repo.findByProjectAndCodeIgnoreCase(project, code.trim());
+                        : repo.findByUatCycleAndCodeIgnoreCase(cycle, code.trim());
                 Scenario s = existing.orElseGet(Scenario::new);
                 s.setProject(project);
+                s.setUatCycle(cycle);
                 s.setCode(code == null ? nextCode(project) : code.trim().toUpperCase());
+                List<String[]> sets = code == null ? null : dataSets.get(code.trim().toUpperCase());
                 apply(s, new ScenarioInput(null, cut(title, 300), get(first, cols, "lob", fmt), get(first, cols, "division", fmt),
                         get(first, cols, "module", fmt), Priority.parse(get(first, cols, "priority", fmt), Priority.MEDIUM),
-                        cut(get(first, cols, "preconditions", fmt), 2000), cut(get(first, cols, "testData", fmt), 2000), steps));
+                        cut(get(first, cols, "preconditions", fmt), 2000), cut(get(first, cols, "testData", fmt), 2000), steps, sets));
                 s.replaceSteps(steps, this::removable);
+                if (sets != null) {
+                    s.replaceDataSets(checkDataSets(sets), this::removable);
+                    dataSetCount += sets.size();
+                }
                 repo.saveAndFlush(s);
                 if (existing.isPresent()) updated++; else created++;
             }
-            return new ImportResult(created, updated);
+            return new ImportResult(created, updated, dataSetCount);
         }
+    }
+
+    /**
+     * Optional sheet named "Test data" (or "Data sets"): one row per data set, with Scenario ID, Data set,
+     * Channel, User / role and Test data. Returned by upper-case scenario ID.
+     */
+    private Map<String, List<String[]>> readDataSets(Workbook wb, DataFormatter fmt) {
+        Map<String, List<String[]>> out = new HashMap<>();
+        Sheet sheet = null;
+        for (Sheet sh : wb) {
+            String n = sh.getSheetName().trim().toLowerCase();
+            if (n.equals("test data") || n.equals("data sets") || n.equals("datasets") || n.equals("test data sets")) sheet = sh;
+        }
+        if (sheet == null) return out;
+        Row header = sheet.getRow(sheet.getFirstRowNum());
+        if (header == null) return out;
+        Map<String, Integer> cols = new HashMap<>();
+        for (Cell c : header) {
+            String field = DATA_ALIASES.get(fmt.formatCellValue(c).trim().toLowerCase());
+            if (field != null) cols.putIfAbsent(field, c.getColumnIndex());
+        }
+        if (!cols.containsKey("code") || !cols.containsKey("name")) {
+            throw new IllegalArgumentException("The Test data sheet needs a Scenario ID column and a Data set column.");
+        }
+        for (int r = header.getRowNum() + 1; r <= sheet.getLastRowNum(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            String code = get(row, cols, "code", fmt);
+            String name = get(row, cols, "name", fmt);
+            if (code == null || name == null) continue;
+            out.computeIfAbsent(code.trim().toUpperCase(), k -> new ArrayList<>()).add(new String[]{
+                    cut(name, 120), cut(get(row, cols, "channel", fmt), 255), cut(get(row, cols, "persona", fmt), 255),
+                    cut(get(row, cols, "testData", fmt), 2000)});
+        }
+        return out;
     }
 
     /** Header order of the sample template; the importer also accepts the aliases listed in ALIASES. */
@@ -189,10 +309,27 @@ public class ScenarioService {
             {"Step", "No", "Step number. Rows are sorted by it; without it, sheet order is used.", "1"},
             {"Action", "Yes", "What the tester does in this step. One row per step.", "Open Pricing summary"},
             {"Expected", "No", "What should happen.", "Premium includes the new vessel"},
+            {"Test data tab (optional)", "", "One row per test data set: the same scenario tested through another channel, as another user, "
+                    + "or with other data. Each data set becomes its own test case and can go to a different tester. "
+                    + "Scenarios with no rows here are run once, with the Test data column above.", ""},
+            {"  Scenario ID", "Yes", "Which scenario the data set belongs to (must match the Scenarios tab).", "SC-001"},
+            {"  Data set", "Yes", "A short name, unique within the scenario.", "Broker portal – UK broker"},
+            {"  Channel", "No", "Where the scenario is run. Pick from the list or type your own.", "Broker portal"},
+            {"  User / role", "No", "Who to log in as. A user or role, never a password.", "Broker user – [broker firm]"},
+            {"  Test data", "No", "References for this data set: policy, quote, broker, client.", "Policy [ref] via broker [code]"},
     };
 
-    /** Sample sheet people can copy: three scenarios across LOBs, dropdowns, and a How to fill tab. */
-    public byte[] template(List<String> lobs, List<String> divisions) throws IOException {
+    public static final String[] DATA_HEADERS = {"Scenario ID", "Data set", "Channel", "User / role", "Test data"};
+
+    private static final String[][] DATA_ROWS = {
+            {"SC-001", "Underwriter – UK", "Underwriter workbench", "Underwriter (UK Marine)", "Policy [hull policy ref], vessel IMO [number]"},
+            {"SC-001", "Broker portal – UK broker", "Broker portal", "Broker user – [broker firm]", "Policy [hull policy ref] placed by broker [broker code]"},
+            {"SC-003", "UK underwriter", "Underwriter workbench", "Underwriter (UK Property), authority [limit]", "Sum insured above authority: [amount]"},
+            {"SC-003", "IM underwriter", "Underwriter workbench", "Underwriter (IM Property), authority [limit]", "Sum insured above authority: [amount]"},
+    };
+
+    /** Sample workbook people can copy: three scenarios, test data sets, dropdowns, and a How to fill tab. */
+    public byte[] template(List<String> lobs, List<String> divisions, List<String> channels) throws IOException {
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Font base = wb.createFont();
             base.setFontName("Arial");
@@ -236,6 +373,26 @@ public class ScenarioService {
             addList(sheet, dv, 3, divisions);
             addList(sheet, dv, 5, List.of("High", "Medium", "Low"));
 
+            Sheet data = wb.createSheet("Test data");
+            Row dh = data.createRow(0);
+            for (int i = 0; i < DATA_HEADERS.length; i++) {
+                Cell c = dh.createCell(i);
+                c.setCellValue(DATA_HEADERS[i]);
+                c.setCellStyle(head);
+            }
+            for (int r = 0; r < DATA_ROWS.length; r++) {
+                Row row = data.createRow(r + 1);
+                for (int i = 0; i < DATA_ROWS[r].length; i++) {
+                    Cell c = row.createCell(i);
+                    c.setCellValue(DATA_ROWS[r][i]);
+                    c.setCellStyle(body);
+                }
+            }
+            int[] dw = {12, 30, 24, 36, 50};
+            for (int i = 0; i < dw.length; i++) data.setColumnWidth(i, dw[i] * 256);
+            data.createFreezePane(0, 1);
+            addList(data, data.getDataValidationHelper(), 2, channels);
+
             Sheet help = wb.createSheet("How to fill");
             String[] hh = {"Column", "Required", "What to enter", "Example"};
             Row hr = help.createRow(0);
@@ -256,8 +413,9 @@ public class ScenarioService {
                     "* Each scenario needs a Scenario ID or a Title. Use Scenario ID if you will re-import updates.",
                     "One row per step. Scenario details (Title, LOB, Division, Module, Priority, Preconditions, Test data) are read from the scenario's first row; later rows can leave them blank.",
                     "Column order doesn't matter and extra columns are ignored. The sheet must be the first tab of the workbook.",
-                    "Delete the three sample scenarios (SC-001 to SC-003) before importing your own, or they will be imported too.",
-                    "Import from Scenario library → Import Excel. Steps that already have test results can be reworded but not removed."};
+                    "Delete the three sample scenarios (SC-001 to SC-003) and their Test data rows before importing your own, or they will be imported too.",
+                    "Scenarios are imported into the UAT cycle selected in UAT Hub. Re-importing a Scenario ID updates that cycle's copy; a Scenario ID with rows on the Test data tab gets exactly those data sets.",
+                    "Import from Scenario library → Import Excel. Steps and data sets that are already in a test run can be reworded but not removed."};
             int r = TEMPLATE_HELP.length + 2;
             for (String n : notes) {
                 Cell c = help.createRow(r++).createCell(0);
@@ -297,7 +455,7 @@ public class ScenarioService {
 
     private String nextCode(Project project) {
         int max = 0;
-        for (Scenario s : repo.findByProjectOrderByCodeAsc(project)) {
+        for (Scenario s : repo.findByProject(project)) {
             String digits = s.getCode().replaceAll("[^0-9]", "");
             if (!digits.isEmpty() && digits.length() < 9) max = Math.max(max, Integer.parseInt(digits));
         }

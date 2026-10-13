@@ -23,8 +23,8 @@
             <div class="field"><label for="c-end">Ends</label><input id="c-end" name="endDate" type="date"></div>
             <button class="btn primary" type="submit">Create cycle</button>
         </form>
-        <p class="small muted-2">The scenario library is shared by every cycle of the project. Each cycle keeps its own runs,
-            results, feedback, issues and sign-offs, so October's data stays as it was when November starts.</p>
+        <p class="small muted-2">Each cycle has its own scenario library, runs, results, feedback, issues and sign-offs, so October's data
+            stays as it was when November starts. A new cycle can reuse scenarios by copying them from an earlier one.</p>
 
         <div class="empty" th:if="${allCycles.isEmpty()}">
             <h2>No UAT cycles yet</h2>
@@ -33,7 +33,7 @@
 
         <div class="table-wrap" th:unless="${allCycles.isEmpty()}">
             <table class="table cycles-table">
-                <thead><tr><th>UAT cycle</th><th>Release</th><th>Dates</th><th>Runs</th><th>Feedback</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>UAT cycle</th><th>Release</th><th>Dates</th><th>Scenarios</th><th>Runs</th><th>Feedback</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 <tr th:each="c : ${allCycles}" th:classappend="(${cycle != null and c.id == cycle.id} ? 'row-on ' : '') + (${c.open} ? '' : 'row-off')">
                     <td>
@@ -45,6 +45,7 @@
                     </td>
                     <td class="muted-2" th:text="${c.releaseName} ?: '—'"></td>
                     <td class="muted-2 small" th:text="${c.dates.isEmpty()} ? '—' : ${c.dates}"></td>
+                    <td class="mono" th:text="${scenarioCount.get(c.id)}"></td>
                     <td class="mono" th:text="${runCount.get(c.id)}"></td>
                     <td class="mono" th:text="${feedbackCount.get(c.id)}"></td>
                     <td><span class="xs" th:classappend="${c.open} ? 'x-passed' : 'x-not_started'" th:text="${c.open} ? 'Open' : 'Closed'"></span></td>

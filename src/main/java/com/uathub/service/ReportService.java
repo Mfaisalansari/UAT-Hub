@@ -70,7 +70,7 @@ public class ReportService {
 
     public Report build(UatCycle cycle, AppUser by) {
         Project project = cycle.getProject();
-        List<Execution> latest = testing.latestPerScenario(cycle);
+        List<Execution> latest = testing.latestPerCase(cycle);
         TestingService.Totals totals = testing.totals(latest);
 
         List<LobLine> lobs = new ArrayList<>();
@@ -112,7 +112,7 @@ public class ReportService {
         Collections.reverse(all);
         List<CycleLine> out = new ArrayList<>();
         for (UatCycle c : all) {
-            TestingService.Totals t = testing.totals(testing.latestPerScenario(c));
+            TestingService.Totals t = testing.totals(testing.latestPerCase(c));
             List<Feedback> items = feedback.findByProjectAndUatCycleOrderByIdDesc(project, c);
             List<TestingService.LobRow> lobRows = testing.lobRows(c);
             out.add(new CycleLine(c, t.total(), t.passed() + t.failed() + t.blocked(), passRate(t), items.size(),
@@ -157,7 +157,7 @@ public class ReportService {
             };
             for (String[] f : facts) { cell(s, row, 0, f[0], head); cell(s, row++, 1, f[1], null); }
             row++;
-            cell(s, row++, 0, "Scenarios (latest result across all runs)", head);
+            cell(s, row++, 0, "Test cases (scenario or data set; latest result across all runs)", head);
             Object[][] nums = {
                     {"In scope", r.totals().total()}, {"Passed", r.totals().passed()}, {"Failed", r.totals().failed()},
                     {"Blocked", r.totals().blocked()}, {"Waiting for re-test", r.totals().retest()}, {"Not run", r.totals().notRun()},
@@ -168,7 +168,7 @@ public class ReportService {
             s.setColumnWidth(0, 40 * 256);
             s.setColumnWidth(1, 50 * 256);
 
-            table(wb, head, "By LOB", new String[]{"Line of business", "Scenarios", "Passed", "Failed", "Blocked", "Re-test", "Not run",
+            table(wb, head, "By LOB", new String[]{"Line of business", "Test cases", "Passed", "Failed", "Blocked", "Re-test", "Not run",
                     "Pass rate %", "Open issues", "Signed off by", "Signed off", "Note", "Accepted open issues"},
                     r.lobs().stream().map(l -> new Object[]{l.lob(), l.totals().total(), l.totals().passed(), l.totals().failed(),
                             l.totals().blocked(), l.totals().retest(), l.totals().notRun(), l.passRate() == null ? "-" : l.passRate(),
@@ -190,18 +190,18 @@ public class ReportService {
                             f.getDecision() == null ? "" : f.getDecision().getLabel(), nz(f.getJiraKey()),
                             f.getRaisedBy() == null ? "" : f.getRaisedBy().getName()}).toList());
 
-            table(wb, head, "Runs", new String[]{"Run", "Build", "Status", "Scenarios", "Passed", "Failed", "Blocked", "Not run", "% done"},
+            table(wb, head, "Runs", new String[]{"Run", "Build", "Status", "Test cases", "Passed", "Failed", "Blocked", "Not run", "% done"},
                     r.runs().stream().map(c -> new Object[]{c.run().getName(), nz(c.run().getBuild()), c.run().isActive() ? "Open" : "Closed",
                             c.totals().total(), c.totals().passed(), c.totals().failed(), c.totals().blocked(),
                             c.totals().notRun() + c.totals().retest(), c.totals().percentDone()}).toList());
 
-            table(wb, head, "Compared with other cycles", new String[]{"UAT cycle", "Scenarios", "Executed", "Pass rate %",
+            table(wb, head, "Compared with other cycles", new String[]{"UAT cycle", "Test cases", "Executed", "Pass rate %",
                             "Feedback", "Bugs", "Open critical/high", "LOBs signed off"},
                     r.comparison().stream().map(c -> new Object[]{c.cycle().getName(), c.scenarios(), c.executed(),
                             c.passRate() == null ? "-" : c.passRate(), c.feedback(), c.bugs(), c.openHighCritical(),
                             c.signedLobs() + " of " + c.lobs()}).toList());
 
-            testing.scenarioSheet(wb, testing.latestPerScenario(r.cycle()), "Scenarios");
+            testing.scenarioSheet(wb, testing.latestPerCase(r.cycle()), "Test cases");
             wb.write(out);
             return out.toByteArray();
         }

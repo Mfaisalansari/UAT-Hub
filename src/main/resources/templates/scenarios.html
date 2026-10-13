@@ -7,10 +7,12 @@
     <main class="main">
         <header class="page-head">
             <div>
-                <p class="crumb">Reusable across UAT cycles</p>
+                <p class="crumb" th:if="${cycle != null}"><span th:text="${cycle.name}"></span>
+                    <span th:text="${activeCount} + ' scenario(s) · ' + ${caseCount} + ' test case(s)'"></span>
+                    <span th:unless="${cycle.open}" class="xs x-not_started">Closed, view only</span></p>
                 <h1 class="title">Scenario library</h1>
             </div>
-            <div class="actions">
+            <div class="actions" th:if="${cycle != null and cycle.open}">
                 <form method="post" enctype="multipart/form-data" class="inline"
                       th:action="@{/scenarios/import(_csrf=${_csrf.token})}">
                     <label class="btn ghost file-btn">Import Excel
@@ -24,7 +26,30 @@
 
         <div th:replace="~{fragments :: flash}"></div>
 
-        <form class="filters" method="get" th:action="@{/scenarios}">
+        <div class="empty" th:if="${cycle == null}">
+            <h2>Create a UAT cycle first</h2>
+            <p>Scenarios belong to a UAT cycle. Create one on the <a th:href="@{/cycles}">UAT cycles</a> page.</p>
+        </div>
+
+        <details class="copy-panel" th:if="${cycle != null and cycle.open and !otherCycles.isEmpty()}" th:open="${activeCount == 0}">
+            <summary><b>Reuse scenarios from another cycle</b>
+                <span class="small muted-2">Copies them into this cycle with their steps and test data sets. Each cycle keeps its own version.</span></summary>
+            <form method="post" th:action="@{/scenarios/copy}" class="copy-form">
+                <div class="field"><label for="cp-from">Copy from</label>
+                    <select id="cp-from" name="from" required>
+                        <option th:each="c : ${otherCycles}" th:value="${c.id}" th:text="${c.name}"></option>
+                    </select></div>
+                <div class="field"><label for="cp-lob">Line of business</label>
+                    <select id="cp-lob" name="lob">
+                        <option value="">All</option>
+                        <option th:each="l : ${lobs}" th:value="${l}" th:text="${l}"></option>
+                    </select></div>
+                <button class="btn primary" type="submit">Copy scenarios</button>
+            </form>
+            <p class="small muted-2">Scenarios whose ID is already in this cycle are skipped, so copying twice is harmless.</p>
+        </details>
+
+        <form class="filters" method="get" th:action="@{/scenarios}" th:if="${cycle != null}">
             <label class="sr" for="sq">Search scenarios</label>
             <input id="sq" type="search" name="q" th:value="${q}" placeholder="Search ID, title, module">
             <label class="sr" for="sl">Line of business</label>
@@ -38,11 +63,11 @@
                th:text="${archived} ? 'Show active (' + ${activeCount} + ')' : 'Show archived (' + ${archivedCount} + ')'"></a>
         </form>
 
-        <div class="split lib-split">
+        <div class="split lib-split" th:if="${cycle != null}">
             <section>
                 <div class="table-wrap" th:unless="${rows.isEmpty()}">
                     <table class="table">
-                        <thead><tr><th>ID</th><th>Scenario</th><th>LOB / division</th><th>Steps</th><th>Priority</th></tr></thead>
+                        <thead><tr><th>ID</th><th>Scenario</th><th>LOB / division</th><th>Steps</th><th>Data sets</th><th>Priority</th></tr></thead>
                         <tbody>
                         <tr th:each="s : ${rows}" th:classappend="${sel != null and s.id == sel.id} ? 'row-on'">
                             <td class="mono id"><a th:href="@{/scenarios(id=${s.id}, q=${q}, lob=${fLob}, archived=${archived})}" th:text="${s.code}"></a></td>
@@ -50,6 +75,7 @@
                                 <small th:text="${s.module}"></small></td>
                             <td class="muted-2" th:text="${s.lobDivision}"></td>
                             <td class="mono" th:text="${s.steps.size()}"></td>
+                            <td class="mono" th:classappend="${s.dataSets.isEmpty()} ? 'muted'" th:text="${s.dataSets.isEmpty()} ? '—' : ${s.dataSets.size()}"></td>
                             <td><span class="pri" th:classappend="'p-' + ${s.priority.css}" th:text="${s.priority.label}"></span></td>
                         </tr>
                         </tbody>
@@ -57,9 +83,10 @@
                 </div>
                 <div class="empty" th:if="${rows.isEmpty()}">
                     <h2 th:text="${archived} ? 'No archived scenarios' : 'No scenarios yet'"></h2>
-                    <p th:unless="${archived}">Start from the <a th:href="@{/scenarios/template}">sample Excel template</a>:
-                        one row per step, and rows with the same Scenario ID become one scenario. Its <b>How to fill</b> tab explains
-                        each column. Then use <b>Import Excel</b>, or add scenarios one at a time with <b>+ New scenario</b>.</p>
+                    <p th:unless="${archived}">This cycle has no scenarios yet. Reuse them from an earlier cycle above, start from the
+                        <a th:href="@{/scenarios/template}">sample Excel template</a> (one row per step; an optional <b>Test data</b> tab
+                        adds data sets per channel and user; the <b>How to fill</b> tab explains each column), or add them one at a time
+                        with <b>+ New scenario</b>.</p>
                 </div>
             </section>
 
@@ -67,10 +94,20 @@
                 <p class="mono small"><span class="lime" th:text="${sel.code}"></span>
                     <span class="muted" th:text="' · ' + ${sel.lobDivision}"></span></p>
                 <h2 class="h2" th:text="${sel.title}"></h2>
+                <p class="small muted" th:if="${sel.copiedFrom != null}" th:text="'Copied from ' + ${sel.copiedFrom}"></p>
                 <div class="pre-box" th:if="${sel.preconditions != null or sel.testData != null}">
-                    <span class="label">Preconditions &amp; test data</span>
+                    <span class="label">Preconditions &amp; common test data</span>
                     <p class="pre" th:if="${sel.preconditions != null}" th:text="${sel.preconditions}"></p>
                     <p class="pre mono small" th:if="${sel.testData != null}" th:text="${sel.testData}"></p>
+                </div>
+                <div th:unless="${sel.dataSets.isEmpty()}" class="ds-list">
+                    <span class="label" th:text="'Test data sets (' + ${sel.dataSets.size()} + ' test cases)'"></span>
+                    <div class="ds-item" th:each="d : ${sel.dataSets}">
+                        <b th:text="${d.name}"></b>
+                        <span class="small muted-2"><span th:if="${d.channel != null}" th:text="${d.channel}"></span>
+                            <span th:if="${d.persona != null}" th:text="' · log in as ' + ${d.persona}"></span></span>
+                        <span class="pre mono small" th:if="${d.testData != null}" th:text="${d.testData}"></span>
+                    </div>
                 </div>
                 <ol class="lib-steps">
                     <li th:each="st : ${sel.steps}">
@@ -79,7 +116,7 @@
                             <small th:if="${st.expected != null}"><span class="muted">Expect · </span><span th:text="${st.expected}"></span></small></span>
                     </li>
                 </ol>
-                <div class="row-actions">
+                <div class="row-actions" th:if="${cycle != null and cycle.open}">
                     <a class="btn ghost small-btn" th:href="@{/scenarios/{id}/edit(id=${sel.id})}">Edit</a>
                     <form method="post" th:action="@{/scenarios/{id}/archive(id=${sel.id})}" class="inline">
                         <input type="hidden" name="active" th:value="${!sel.active}">

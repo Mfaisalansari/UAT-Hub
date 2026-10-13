@@ -7,13 +7,22 @@
 
     <section class="steps-col" aria-label="Steps">
         <a class="crumb" th:href="@{/my}">← My scenarios</a>
-        <p class="mono small"><span class="lime" th:text="${e.scenario.code}"></span>
+        <p class="mono small"><span class="lime" th:text="${e.caseCode}"></span>
             <span class="muted" th:text="' · ' + ${e.scenario.lobDivision} + ' · ' + ${e.scenario.priority.label}"></span></p>
         <h1 class="title-3" th:text="${e.scenario.title}"></h1>
+        <div class="ds-box" th:if="${e.dataSet != null}">
+            <span class="label">Test with this data set</span>
+            <b th:text="${e.dataSet.name}"></b>
+            <dl>
+                <th:block th:if="${e.dataSet.channel != null}"><dt>Channel</dt><dd th:text="${e.dataSet.channel}"></dd></th:block>
+                <th:block th:if="${e.dataSet.persona != null}"><dt>Log in as</dt><dd th:text="${e.dataSet.persona}"></dd></th:block>
+                <th:block th:if="${e.dataSet.testData != null}"><dt>Test data</dt><dd class="pre mono" th:text="${e.dataSet.testData}"></dd></th:block>
+            </dl>
+        </div>
         <div class="pre-box" th:if="${e.scenario.preconditions != null or e.scenario.testData != null}">
             <span class="label">Before you start</span>
             <p class="pre" th:if="${e.scenario.preconditions != null}" th:text="${e.scenario.preconditions}"></p>
-            <p class="pre mono small" th:if="${e.scenario.testData != null}" th:text="'Test data: ' + ${e.scenario.testData}"></p>
+            <p class="pre mono small" th:if="${e.scenario.testData != null}" th:text="(${e.dataSet != null} ? 'Common test data: ' : 'Test data: ') + ${e.scenario.testData}"></p>
         </div>
         <div class="progress-row">
             <span class="bar"><i th:style="'width:' + (${steps.isEmpty()} ? 0 : ${results.size() * 100 / steps.size()}) + '%'"></i></span>

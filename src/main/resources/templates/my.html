@@ -29,7 +29,7 @@
             <section class="retest-banner" th:each="x : ${queue}" th:if="${x.status.name() == 'RETEST'}">
                 <span class="xs x-retest">Re-test</span>
                 <span class="rb-text">
-                    <b><span class="mono lime" th:text="${x.scenario.code}"></span> <span th:text="${x.scenario.title}"></span></b>
+                    <b><span class="mono lime" th:text="${x.caseCode}"></span> <span th:text="${x.scenario.title}"></span></b>
                     <small>
                         <span th:each="l, s : ${links.get(x.id)}" th:if="${l.feedback.fixedInBuild != null}"
                               th:text="${l.feedback.code} + ' marked fixed in ' + ${l.feedback.fixedInBuild} + (${s.last} ? '. ' : ', ')"></span>
@@ -46,7 +46,8 @@
                     <tr th:each="x : ${queue}">
                         <td class="mono id"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.code}"></a></td>
                         <td class="title-cell"><a th:href="@{/exec/{id}(id=${x.id})}" th:text="${x.scenario.title}"></a>
-                            <small th:text="${x.scenario.module}"></small></td>
+                            <small th:if="${x.dataSet == null}" th:text="${x.scenario.module}"></small>
+                            <small th:if="${x.dataSet != null}" class="ds-tag" th:text="${x.dataSet.name} + (${x.dataSet.persona} != null ? ' · log in as ' + ${x.dataSet.persona} : '')"></small></td>
                         <td class="small"><span th:text="${x.run.name}"></span><small class="block mono muted" th:if="${x.run.build != null}" th:text="${x.run.build}"></small></td>
                         <td class="muted-2" th:text="${x.scenario.lobDivision}"></td>
                         <td><span class="pri" th:classappend="'p-' + ${x.scenario.priority.css}" th:text="${x.scenario.priority.label}"></span></td>

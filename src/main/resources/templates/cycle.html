@@ -43,7 +43,7 @@
                     <span><i class="s-blocked"></i>Blocked <b th:text="${totals.blocked()}"></b></span>
                     <span><i class="s-retest"></i>Re-test <b th:text="${totals.retest()}"></b></span>
                     <span><i class="s-none"></i>Not run <b th:text="${totals.notRun()}"></b></span>
-                    <span class="push-right mono small muted" th:text="${totals.total()} + ' scenarios · latest result across all runs'"></span>
+                    <span class="push-right mono small muted" th:text="${totals.total()} + ' test cases · latest result across all runs'"></span>
                 </p>
             </section>
 
@@ -130,7 +130,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="small muted-2">Each scenario counts once: its result in the newest run where it was started.</p>
+                    <p class="small muted-2">Each test case (a scenario, or one of its data sets) counts once: its result in the newest run where it was started.</p>
                 </section>
 
                 <aside class="side-stack">
